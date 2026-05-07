@@ -4,10 +4,87 @@ import { useQuery } from '@tanstack/react-query'
 import { notesApi, sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSessionWs } from '../hooks/useSessionWs'
+import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useUiStore } from '../stores/uiStore'
-import { Square, RefreshCw, Stethoscope, User } from 'lucide-react'
+import { Square, RefreshCw } from 'lucide-react'
 import styles from './ActiveSession.module.css'
 
+// Helper: format seconds as MM:SS
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+// Transcript message component
+function TranscriptMessage({ chunk }) {
+  const isDoctor  = chunk.speaker === 'doctor'
+  const isUnknown = chunk.speaker === 'unknown'
+  const isLowConf = typeof chunk.confidence === 'number' && chunk.confidence < 0.5
+
+  return (
+    <div className="transcript-msg" style={{ marginBottom: 'var(--space-3)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                    marginBottom: 'var(--space-1)' }}>
+        <span style={{
+          fontSize: 'var(--text-xs)', fontWeight: 600, letterSpacing: '0.05em',
+          color: isDoctor ? 'var(--color-primary)' : 'var(--color-text-muted)',
+          textTransform: 'uppercase',
+        }}>
+          {isDoctor ? '🩺 Doctor' : isUnknown ? '🎙 Speaking' : '👤 Patient'}
+        </span>
+        {chunk.start !== undefined && (
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+            {formatDuration(chunk.start)}
+          </span>
+        )}
+        {isLowConf && (
+          <span title="Low confidence — may contain errors"
+                style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning)' }}>⚠</span>
+        )}
+      </div>
+      <div style={{
+        background: isDoctor ? 'var(--color-primary-light)' : 'var(--color-surface-2)',
+        borderRadius: 'var(--radius-md)',
+        padding: 'var(--space-2) var(--space-3)',
+        fontSize: 'var(--text-sm)',
+        lineHeight: 1.5,
+        opacity: isLowConf ? 0.7 : 1,
+      }}>
+        {chunk.text}
+      </div>
+    </div>
+  )
+}
+
+// Empty state component
+function TranscriptEmptyState({ wsStatus, micStatus, micError }) {
+  const state = {
+    connecting:   { icon: '⏳', text: 'Connecting to session...' },
+    connected:    { icon: '🎙', text: micStatus === 'requesting' ? 'Requesting microphone access...' : 'Listening... speak now.' },
+    disconnected: { icon: '⚠️', text: 'Connection lost. Attempting to reconnect...' },
+    error:        { icon: '❌', text: 'Connection error. Please end this session and start a new one.' },
+  }
+  const s = state[wsStatus] || state.connecting
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  justifyContent: 'center', height: '200px', gap: 'var(--space-3)',
+                  color: 'var(--color-text-muted)', padding: 'var(--space-8)',
+                  textAlign: 'center' }}>
+      <span style={{ fontSize: '2rem' }}>{s.icon}</span>
+      <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>{s.text}</span>
+      {micError && (
+        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-error)',
+                       maxWidth: '30ch', lineHeight: 1.4 }}>
+          {micError}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Confidence bar component
 function ConfidenceBar({ score }) {
   const pct = Math.round((score ?? 0) * 100)
   const color = score >= 0.8 ? 'var(--color-primary)' : score >= 0.6 ? 'var(--color-warning)' : 'var(--color-error)'
@@ -22,12 +99,12 @@ function ConfidenceBar({ score }) {
   )
 }
 
+// Main component
 export default function ActiveSession() {
-  const { id } = useParams()
+  const { id: sessionId } = useParams()
   const navigate = useNavigate()
   const addToast = useUiStore((s) => s.addToast)
   const { transcriptChunks, wsStatus, clearTranscript } = useSessionStore()
-  const { sendAudioChunk } = useSessionWs(id)
 
   const feedRef = useRef(null)
   const [elapsed, setElapsed] = useState(0)
@@ -35,14 +112,32 @@ export default function ActiveSession() {
   const [noteFields, setNoteFields] = useState({})
   const [ending, setEnding] = useState(false)
 
+  // Clear any transcript from a previous session on mount
+  useEffect(() => {
+    clearTranscript()
+  }, [sessionId, clearTranscript])
+
+  // Real WebSocket connection
+  const { sendAudioChunk, connectionError } = useSessionWs(sessionId)
+
+  // Real microphone capture — sends each chunk directly to WebSocket
+  const { micStatus, startCapture, stopCapture, errorMessage: micError } = useAudioCapture({
+    onChunk: sendAudioChunk,
+    isConnected: wsStatus === 'connected',
+  })
+
+  // Auto-start mic once WebSocket confirms connection
+  useEffect(() => {
+    if (wsStatus === 'connected' && micStatus === 'idle') {
+      startCapture()
+    }
+  }, [wsStatus, micStatus, startCapture])
+
   // Session timer
   useEffect(() => {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000)
     return () => clearInterval(t)
   }, [])
-
-  // Clear transcript on mount
-  useEffect(() => { clearTranscript() }, [clearTranscript])
 
   // Auto-scroll transcript feed
   useEffect(() => {
@@ -51,19 +146,10 @@ export default function ActiveSession() {
     }
   }, [transcriptChunks])
 
-  // Simulate sending audio chunks to trigger mock transcript
-  useEffect(() => {
-    if (wsStatus !== 'connected') return
-    const t = setInterval(() => {
-      sendAudioChunk(new Uint8Array([0]).buffer)
-    }, 2000)
-    return () => clearInterval(t)
-  }, [wsStatus, sendAudioChunk])
-
   // Fetch note after first transcript chunk arrives
   useEffect(() => {
     if (transcriptChunks.length === 3 && !note) {
-      notesApi.get(id).then((n) => {
+      notesApi.get(sessionId).then((n) => {
         setNote(n)
         setNoteFields({
           chief_complaint: n.chief_complaint,
@@ -73,20 +159,14 @@ export default function ActiveSession() {
         })
       })
     }
-  }, [transcriptChunks.length, id, note])
+  }, [transcriptChunks.length, sessionId, note])
 
   const fmt = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-  const handleEnd = async () => {
-    setEnding(true)
-    try {
-      await sessionsApi.end(id)
-      navigate(`/sessions/${id}/review`)
-    } catch {
-      addToast({ type: 'error', message: 'Failed to end session.' })
-      setEnding(false)
-    }
+  const handleEndSession = () => {
+    stopCapture()                              // Stop microphone first
+    navigate(`/sessions/${sessionId}/review`) // WS closes automatically on unmount
   }
 
   return (
@@ -97,7 +177,7 @@ export default function ActiveSession() {
           <div className={styles.panelHeader}>
             <div className={styles.timerRow}>
               <span className={styles.timer}>{fmt(elapsed)}</span>
-              {wsStatus === 'connected' && (
+              {wsStatus === 'connected' && micStatus === 'recording' && (
                 <span className={styles.recBadge}>
                   <span className={styles.recDot} /> REC
                 </span>
@@ -113,34 +193,34 @@ export default function ActiveSession() {
             </div>
           </div>
 
+          {/* Connection error banner */}
+          {connectionError && (
+            <div style={{
+              fontSize: 'var(--text-xs)', color: 'var(--color-error)',
+              padding: 'var(--space-2) var(--space-4)',
+              background: 'var(--color-error-light)',
+              borderBottom: '1px solid var(--color-border)',
+            }}>
+              ⚠ {connectionError}
+            </div>
+          )}
+
           <div className={styles.feed} ref={feedRef}>
-            {transcriptChunks.length === 0 && wsStatus === 'connecting' && (
-              <div className={styles.skeleton}>
-                <div className={styles.skeletonLine} style={{ width: '70%' }} />
-                <div className={styles.skeletonLine} style={{ width: '50%' }} />
-                <div className={styles.skeletonLine} style={{ width: '80%' }} />
+            {transcriptChunks.length === 0 ? (
+              <TranscriptEmptyState wsStatus={wsStatus} micStatus={micStatus} micError={micError} />
+            ) : (
+              <div className="transcript-feed">
+                {transcriptChunks.map((chunk, i) => (
+                  <TranscriptMessage key={chunk.chunkIndex ?? i} chunk={chunk} />
+                ))}
               </div>
             )}
-            {transcriptChunks.map((chunk, i) => (
-              <div
-                key={i}
-                className={`${styles.bubble} ${chunk.speaker === 'doctor' ? styles.bubbleDoctor : styles.bubblePatient}`}
-              >
-                <span className={styles.bubbleSpeaker}>
-                  {chunk.speaker === 'doctor'
-                    ? <><Stethoscope size={11} /> Doctor</>
-                    : <><User size={11} /> Patient</>
-                  }
-                </span>
-                <p className={styles.bubbleText}>{chunk.text}</p>
-              </div>
-            ))}
           </div>
 
           <div className={styles.panelFooter}>
             <button
               className={styles.endBtn}
-              onClick={handleEnd}
+              onClick={handleEndSession}
               disabled={ending}
             >
               <Square size={14} fill="currentColor" />
@@ -155,7 +235,7 @@ export default function ActiveSession() {
             <span className={styles.panelTitle}>Draft Note</span>
             <button
               className={styles.generateBtn}
-              onClick={() => notesApi.get(id).then((n) => {
+              onClick={() => notesApi.get(sessionId).then((n) => {
                 setNote(n)
                 setNoteFields({
                   chief_complaint: n.chief_complaint,

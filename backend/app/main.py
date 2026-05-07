@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -5,12 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
 from app.routers import doctors, notes, sessions, ws
+from app.services.asr import load_model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. Init database (existing — do not remove)
     await init_db()
+
+    # 2. Preload Whisper model in a thread (non-blocking for event loop)
+    # load_model() takes 15-30s on first run — runs in executor so
+    # FastAPI can still handle health checks during startup.
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, load_model)
+
     yield
+    # Shutdown: Whisper model is GC'd automatically — no explicit cleanup needed
 
 
 app = FastAPI(
