@@ -7,15 +7,13 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from app.config import settings
-from app.services.asr import delete_audio_file, generate_temp_path, transcribe_audio_chunk
+from app.services.asr import transcribe_audio_chunk
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# ── Active session tracker ────────────────────────────────────────────────────────
-# Maps session_id (str) → WebSocket.
-# Used to enforce the MAX_CONCURRENT_SESSIONS POC limit.
+# Maps session_id → WebSocket for concurrent session limit enforcement
 _active_sessions: dict[str, WebSocket] = {}
 
 
@@ -25,17 +23,18 @@ async def audio_stream(websocket: WebSocket, session_id: str):
     WebSocket endpoint: real-time audio streaming and transcription.
 
     CLIENT → SERVER: binary frames (audio/webm chunks, ~1s each from MediaRecorder)
-    SERVER → CLIENT: JSON frames (one of the message types below)
+    SERVER → CLIENT: JSON frames
 
-    Server message types:
-      {"type": "connected",        "session_id": "..."}
-      {"type": "transcript_chunk", "session_id": "...", "text": "...", "speaker": "unknown",
-       "start": 0.0, "end": 2.3,  "confidence": 0.85, "chunk_index": 1}
-      {"type": "error",            "message": "..."}
-      {"type": "session_ended",    "session_id": "..."}
+    WebM fragmentation strategy:
+    - MediaRecorder(timeslice=1000) produces fragmented WebM.
+    - Chunk 0: EBML header + Segment + Tracks + Cluster #1  (initialization + first audio)
+    - Chunk N: Cluster #N only  (raw audio, no header)
+    - To decode any window of audio, we must prepend the initialization header.
+    - We store chunk 0 as `webm_init` and prepend it to every flush buffer.
+    - This gives ffmpeg a complete, decodable WebM stream every time.
     """
 
-    # ── Enforce concurrent session limit ──────────────────────────────────────────
+    # ── Enforce concurrent session limit ──────────────────────────────────────
     if (
         len(_active_sessions) >= settings.max_concurrent_sessions
         and session_id not in _active_sessions
@@ -45,7 +44,8 @@ async def audio_stream(websocket: WebSocket, session_id: str):
             reason=f"POC limit: max {settings.max_concurrent_sessions} concurrent sessions.",
         )
         logger.warning(
-            f"Rejected {session_id}: concurrent limit ({settings.max_concurrent_sessions}) reached."
+            f"Rejected {session_id}: concurrent limit "
+            f"({settings.max_concurrent_sessions}) reached."
         )
         return
 
@@ -54,43 +54,52 @@ async def audio_stream(websocket: WebSocket, session_id: str):
     logger.info(f"Session {session_id} connected. Active: {len(_active_sessions)}")
     await websocket.send_json({"type": "connected", "session_id": session_id})
 
-    # ── Per-session state ─────────────────────────────────────────────────────────
-    audio_buffer = bytearray()        # Accumulates raw WebM bytes from client
-    buffer_start_time = time.time()   # Timestamp when current buffer window started
-    chunk_index = 0                   # Sequential counter sent with each transcript chunk
-    pending_temp_files: list[str] = [] # Cleanup tracker for crash safety
+    # ── Per-session state ─────────────────────────────────────────────────────
+    audio_buffer = bytearray()       # Accumulates cluster chunks (no header)
+    buffer_start_time = time.time()
+    chunk_index = 0
+    webm_init: bytes | None = None   # First chunk = WebM init segment (header)
 
     try:
         while True:
-            # Receive next binary frame from client (1s audio chunk from MediaRecorder)
             try:
                 raw = await asyncio.wait_for(
                     websocket.receive_bytes(),
-                    timeout=30.0,  # 30s idle timeout — client must send audio or we close
+                    timeout=30.0,
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"Session {session_id}: 30s idle timeout. Closing.")
                 break
 
+            # First chunk contains the WebM initialization segment.
+            # Store it separately — prepend to every flush so ffmpeg always
+            # receives a complete, decodable WebM stream.
+            if webm_init is None:
+                webm_init = bytes(raw)
+                logger.info(
+                    f"Session {session_id}: captured WebM init segment "
+                    f"({len(webm_init)} bytes)"
+                )
+                # Don't add init to audio_buffer — it will be prepended on flush
+                buffer_start_time = time.time()
+                continue
+
             audio_buffer.extend(raw)
             elapsed = time.time() - buffer_start_time
 
-            # Flush buffer to Whisper once enough audio has accumulated
+            # Flush to Whisper once enough audio has accumulated
             if elapsed >= settings.audio_chunk_buffer_seconds and len(audio_buffer) > 0:
-                temp_path = generate_temp_path(session_id)
-                pending_temp_files.append(temp_path)
-
-                # Write buffer to disk
-                with open(temp_path, "wb") as f:
-                    f.write(audio_buffer)
-
-                # Reset buffer immediately — new audio accumulates during transcription
+                # Build a complete WebM: init segment + accumulated clusters
+                chunk_bytes = webm_init + bytes(audio_buffer)
                 audio_buffer = bytearray()
                 buffer_start_time = time.time()
 
-                # Transcribe (runs in thread pool — non-blocking)
+                logger.debug(
+                    f"Session {session_id}: flushing {len(chunk_bytes)} bytes to Whisper"
+                )
+
                 try:
-                    segments = await transcribe_audio_chunk(temp_path)
+                    segments = await transcribe_audio_chunk(chunk_bytes)
                 except Exception as e:
                     logger.error(f"Session {session_id}: transcription error: {e}")
                     await websocket.send_json({
@@ -98,24 +107,17 @@ async def audio_stream(websocket: WebSocket, session_id: str):
                         "message": "Transcription failed for this chunk. Continuing...",
                     })
                     continue
-                finally:
-                    # DPDP Act compliance: always delete audio after processing
-                    delete_audio_file(temp_path)
-                    if temp_path in pending_temp_files:
-                        pending_temp_files.remove(temp_path)
 
-                # Stream each accepted segment back to client
                 for seg in segments:
                     if not seg["text"]:
                         continue
                     chunk_index += 1
-                    # Normalise avg_logprob (-2.0..0.0) to confidence score (0.0..1.0)
                     confidence = round(min(max(seg["avg_logprob"] + 2.0, 0.0), 1.0), 2)
                     await websocket.send_json({
                         "type": "transcript_chunk",
                         "session_id": session_id,
                         "text": seg["text"],
-                        "speaker": "unknown",  # Sprint 2 adds pyannote diarization
+                        "speaker": "unknown",
                         "start": round(seg["start"], 2),
                         "end": round(seg["end"], 2),
                         "confidence": confidence,
@@ -135,12 +137,6 @@ async def audio_stream(websocket: WebSocket, session_id: str):
     finally:
         _active_sessions.pop(session_id, None)
         logger.info(f"Session {session_id} closed. Active: {len(_active_sessions)}")
-
-        # Crash safety: delete any temp files that weren't cleaned up during the session
-        for path in pending_temp_files:
-            delete_audio_file(path)
-
-        # Best-effort session_ended notification
         try:
             await websocket.send_json({"type": "session_ended", "session_id": session_id})
         except Exception:

@@ -40,6 +40,9 @@ export function useAudioCapture({ onChunk, isConnected }) {
 
   const streamRef = useRef(null)    // Active MediaStream
   const recorderRef = useRef(null)  // Active MediaRecorder
+  // Ref so ondataavailable always reads the latest isConnected value (avoids stale closure)
+  const isConnectedRef = useRef(isConnected)
+  useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
 
   const stopCapture = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
@@ -98,11 +101,11 @@ export function useAudioCapture({ onChunk, isConnected }) {
 
     // 3. ondataavailable fires every 1000ms (set by timeslice in recorder.start)
     recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0 && isConnected) {
-        onChunk(event.data)
+      if (event.data && event.data.size > 0) {
+        if (isConnectedRef.current) {
+          onChunk(event.data)
+        }
       }
-      // If not connected: chunk is silently dropped. Recording continues
-      // so audio resumes immediately on reconnect.
     }
 
     recorder.onerror = (event) => {
@@ -119,7 +122,7 @@ export function useAudioCapture({ onChunk, isConnected }) {
     recorder.start(1000)
     setMicStatus('recording')
 
-  }, [onChunk, isConnected, stopCapture])
+  }, [onChunk, stopCapture]) // ✅ isConnected removed — we use isConnectedRef inside
 
   // Auto-stop if WebSocket disconnects while recording
   useEffect(() => {

@@ -128,7 +128,7 @@ export default function ActiveSession() {
 
   // Auto-start mic once WebSocket confirms connection
   useEffect(() => {
-    if (wsStatus === 'connected' && micStatus === 'idle') {
+    if (wsStatus === 'connected' && (micStatus === 'idle' || micStatus === 'stopped')) {
       startCapture()
     }
   }, [wsStatus, micStatus, startCapture])
