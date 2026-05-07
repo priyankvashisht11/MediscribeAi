@@ -1,0 +1,64 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class ClinicalNote(Base):
+    __tablename__ = "clinical_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("sessions.id"), unique=True, nullable=False
+    )
+
+    # SOAP Structure
+    chief_complaint: Mapped[str] = mapped_column(Text, nullable=True)
+    history_of_present_illness: Mapped[str] = mapped_column(Text, nullable=True)
+    review_of_systems: Mapped[str] = mapped_column(Text, nullable=True)
+    past_medical_history: Mapped[str] = mapped_column(Text, nullable=True)
+    medications: Mapped[str] = mapped_column(Text, nullable=True)
+    allergies: Mapped[str] = mapped_column(Text, nullable=True)
+    physical_examination: Mapped[str] = mapped_column(Text, nullable=True)
+    assessment: Mapped[str] = mapped_column(Text, nullable=True)
+    plan: Mapped[str] = mapped_column(Text, nullable=True)
+    follow_up: Mapped[str] = mapped_column(Text, nullable=True)
+
+    # Structured extras
+    icd_codes: Mapped[dict] = mapped_column(JSONB, nullable=True)
+    extracted_entities: Mapped[dict] = mapped_column(JSONB, nullable=True)
+
+    # Quality
+    confidence_score: Mapped[float] = mapped_column(Float, nullable=True)
+    template_type: Mapped[str] = mapped_column(String(50), default="soap")
+
+    # State
+    is_finalized: Mapped[bool] = mapped_column(Boolean, default=False)
+    doctor_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), server_default=func.now()
+    )
+
+    session: Mapped["Session"] = relationship("Session", back_populates="note")
+
+
+class NoteAuditLog(Base):
+    __tablename__ = "note_audit_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    note_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clinical_notes.id"), nullable=False)
+    changed_by: Mapped[uuid.UUID] = mapped_column(nullable=True)  # doctor_id
+    change_type: Mapped[str] = mapped_column(String(20))  # created | edited | finalized
+    snapshot: Mapped[dict] = mapped_column(JSONB)          # full note state at time of change
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

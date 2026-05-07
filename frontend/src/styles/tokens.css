@@ -1,0 +1,114 @@
+/* ── MediScribe Design Tokens ─────────────────────────────────────────────── */
+
+:root {
+  /* Primary — Teal (medical, trustworthy) */
+  --color-primary:        #01696f;
+  --color-primary-hover:  #015a5f;
+  --color-primary-light:  #e6f4f4;
+  --color-primary-muted:  #b2d8da;
+
+  /* Semantic */
+  --color-success:        #16a34a;
+  --color-success-light:  #dcfce7;
+  --color-warning:        #d97706;
+  --color-warning-light:  #fef3c7;
+  --color-error:          #dc2626;
+  --color-error-light:    #fee2e2;
+  --color-info:           #0284c7;
+  --color-info-light:     #e0f2fe;
+
+  /* Light mode surfaces */
+  --color-bg:             #f8fafb;
+  --color-surface:        #ffffff;
+  --color-surface-2:      #f1f5f6;
+  --color-border:         #e2e8ea;
+  --color-border-strong:  #c8d4d6;
+
+  /* Light mode text */
+  --color-text:           #0f1f21;
+  --color-text-secondary: #3d5a5e;
+  --color-text-muted:     #6b8a8e;
+  --color-text-disabled:  #a0b4b7;
+  --color-text-inverse:   #ffffff;
+
+  /* Typography */
+  --font-body: 'Satoshi', 'Inter', system-ui, sans-serif;
+
+  /* Fluid type scale */
+  --text-xs:   clamp(0.694rem, 0.67rem + 0.12vw,  0.75rem);
+  --text-sm:   clamp(0.833rem, 0.8rem  + 0.17vw,  0.875rem);
+  --text-base: clamp(1rem,     0.96rem + 0.2vw,    1rem);
+  --text-md:   clamp(1.1rem,   1.05rem + 0.25vw,   1.125rem);
+  --text-lg:   clamp(1.2rem,   1.14rem + 0.3vw,    1.25rem);
+  --text-xl:   clamp(1.44rem,  1.35rem + 0.45vw,   1.5rem);
+
+  /* 4px spacing system */
+  --space-1:   0.25rem;   /*  4px */
+  --space-2:   0.5rem;    /*  8px */
+  --space-3:   0.75rem;   /* 12px */
+  --space-4:   1rem;      /* 16px */
+  --space-5:   1.25rem;   /* 20px */
+  --space-6:   1.5rem;    /* 24px */
+  --space-8:   2rem;      /* 32px */
+  --space-10:  2.5rem;    /* 40px */
+  --space-12:  3rem;      /* 48px */
+  --space-16:  4rem;      /* 64px */
+  --space-20:  5rem;      /* 80px */
+  --space-24:  6rem;      /* 96px */
+  --space-32:  8rem;      /* 128px */
+
+  /* Border radius */
+  --radius-sm:   0.25rem;
+  --radius-md:   0.5rem;
+  --radius-lg:   0.75rem;
+  --radius-xl:   1rem;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.08), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  /* Transitions */
+  --transition: 150ms ease;
+  --transition-slow: 250ms ease;
+
+  /* Layout */
+  --sidebar-width: 220px;
+  --topbar-height: 48px;
+}
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg:             #0d1a1c;
+  --color-surface:        #152124;
+  --color-surface-2:      #1c2c30;
+  --color-border:         #243438;
+  --color-border-strong:  #2e4248;
+
+  --color-text:           #e8f4f5;
+  --color-text-secondary: #9bbfc3;
+  --color-text-muted:     #6a9298;
+  --color-text-disabled:  #3d5a5e;
+  --color-text-inverse:   #0f1f21;
+
+  --color-primary:        #2a9da3;
+  --color-primary-hover:  #3ab0b7;
+  --color-primary-light:  #0d2e30;
+  --color-primary-muted:  #1a4a4e;
+
+  --color-success:        #22c55e;
+  --color-success-light:  #052e16;
+  --color-warning:        #f59e0b;
+  --color-warning-light:  #2d1a00;
+  --color-error:          #f87171;
+  --color-error-light:    #2d0a0a;
+  --color-info:           #38bdf8;
+  --color-info-light:     #082030;
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+}

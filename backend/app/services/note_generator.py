@@ -1,0 +1,1 @@
+# LLM note generation stub
