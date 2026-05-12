@@ -20,6 +20,12 @@ primary_region = "bom"
   auto_start_machines = true
   min_machines_running = 0
 
+[deploy]
+  strategy = "immediate"
+
+[machines]
+  max = 1
+
   [http_service.concurrency]
     type = "connections"
     hard_limit = 25
