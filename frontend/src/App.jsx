@@ -1,13 +1,30 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { DoctorsProvider } from './context/DoctorsContext'
 import AppShell from './components/AppShell'
 import Dashboard from './pages/Dashboard'
 import NewSession from './pages/NewSession'
 import ActiveSession from './pages/ActiveSession'
-import NoteReview from './pages/NoteReview'
 import SessionHistory from './pages/SessionHistory'
-import DoctorsPage from './pages/Doctors'
 import NotFound from './pages/NotFound'
+
+const NoteReview       = lazy(() => import('./pages/NoteReview'))
+const TranscriptViewer = lazy(() => import('./pages/TranscriptViewer'))
+const DoctorsPage      = lazy(() => import('./pages/Doctors'))
+const Settings         = lazy(() => import('./pages/Settings'))
+
+function PageLoader() {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      height: '100%', minHeight: '200px',
+      color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)',
+    }}>
+      Loading…
+    </div>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,6 +34,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   return (
+    <DoctorsProvider>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
@@ -26,12 +44,15 @@ export default function App() {
             <Route path="sessions/active" element={<SessionHistory filter="active" />} />
             <Route path="sessions/history" element={<SessionHistory />} />
             <Route path="sessions/:id/live" element={<ActiveSession />} />
-            <Route path="sessions/:id/review" element={<NoteReview />} />
-            <Route path="doctors" element={<DoctorsPage />} />
+            <Route path="sessions/:id/review" element={<Suspense fallback={<PageLoader />}><NoteReview /></Suspense>} />
+            <Route path="sessions/:sessionId/transcript" element={<Suspense fallback={<PageLoader />}><TranscriptViewer /></Suspense>} />
+            <Route path="doctors" element={<Suspense fallback={<PageLoader />}><DoctorsPage /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
+    </DoctorsProvider>
   )
 }

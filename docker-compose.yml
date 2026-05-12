@@ -40,6 +40,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - hf_cache:/root/.cache/huggingface
 
   frontend:
     build: ./frontend
@@ -49,8 +50,12 @@ services:
     depends_on:
       - backend
     environment:
-      - VITE_API_URL=http://localhost:8000
-      - VITE_WS_URL=ws://localhost:8000
+      - VITE_API_URL=http://backend:8000
+      - VITE_WS_URL=ws://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
 volumes:
   postgres_data:
+  hf_cache:

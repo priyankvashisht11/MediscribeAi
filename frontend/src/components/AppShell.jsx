@@ -1,9 +1,12 @@
+import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Radio, ClipboardList, Users,
-  Settings, HelpCircle, Menu, X, Sun, Moon, Bell
+  Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
+  PlusCircle, Clock
 } from 'lucide-react'
 import { useUiStore } from '../stores/uiStore'
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import Logo from './Logo'
 import ToastContainer from './Toast'
 import styles from './AppShell.module.css'
@@ -20,9 +23,31 @@ const NAV_BOTTOM = [
   { icon: HelpCircle, label: 'Help',     to: '/help' },
 ]
 
+const BOTTOM_TABS = [
+  { icon: LayoutDashboard, label: 'Dashboard', to: '/' },
+  { icon: PlusCircle,      label: 'New',       to: '/sessions/new', accent: true },
+  { icon: Clock,           label: 'History',   to: '/sessions/history' },
+  { icon: Users,           label: 'Doctors',   to: '/doctors' },
+  { icon: Settings,        label: 'Settings',  to: '/settings' },
+]
+
 export default function AppShell() {
   const { sidebarOpen, toggleSidebar, theme, setTheme } = useUiStore()
   const navigate = useNavigate()
+  const [showShortcuts, setShowShortcuts] = useState(false)
+
+  useKeyboardShortcuts()
+
+  useEffect(() => {
+    const showHandler = () => setShowShortcuts(true)
+    const escHandler = () => setShowShortcuts(false)
+    window.addEventListener('mediscribe:show-shortcuts', showHandler)
+    window.addEventListener('mediscribe:escape', escHandler)
+    return () => {
+      window.removeEventListener('mediscribe:show-shortcuts', showHandler)
+      window.removeEventListener('mediscribe:escape', escHandler)
+    }
+  }, [])
 
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
 
@@ -96,6 +121,7 @@ export default function AppShell() {
         </button>
 
         <div className={styles.topbarRight}>
+          <span className="topbar-shortcut-hint">Press ? for shortcuts</span>
           <button
             className={styles.iconBtn}
             onClick={toggleTheme}
@@ -114,7 +140,42 @@ export default function AppShell() {
         <Outlet />
       </main>
 
+      {/* Bottom tab bar — mobile only */}
+      <nav className={styles.bottomTabs} aria-label="Main navigation">
+        {BOTTOM_TABS.map(tab => (
+          <NavLink
+            key={tab.to}
+            to={tab.to}
+            end={tab.to === '/'}
+            className={({ isActive }) =>
+              `${styles.bottomTab}${isActive ? ` ${styles.bottomTabActive}` : ''}${tab.accent ? ` ${styles.bottomTabAccent}` : ''}`
+            }
+          >
+            <tab.icon size={20} />
+            <span className={styles.bottomTabLabel}>{tab.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
       <ToastContainer />
+
+      {showShortcuts && (
+        <div className="modal-overlay" onClick={() => setShowShortcuts(false)}>
+          <div className="modal-card" onClick={e => e.stopPropagation()}>
+            <h2 className="modal-title">Keyboard Shortcuts</h2>
+            <table className="shortcuts-table">
+              <tbody>
+                <tr><td><kbd>N</kbd></td><td>New Session</td></tr>
+                <tr><td><kbd>H</kbd></td><td>Session History</td></tr>
+                <tr><td><kbd>D</kbd></td><td>Dashboard</td></tr>
+                <tr><td><kbd>Esc</kbd></td><td>Close modal / Cancel</td></tr>
+                <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
+              </tbody>
+            </table>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowShortcuts(false)}>Close</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

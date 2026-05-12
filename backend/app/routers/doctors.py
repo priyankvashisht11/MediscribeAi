@@ -1,8 +1,17 @@
+# backend/app/routers/doctors.py — real DB queries
+
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import get_db
+from app.models import Doctor
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -12,49 +21,19 @@ class DoctorResponse(BaseModel):
     specialty: str
     email: str
 
-
-MOCK_DOCTORS = [
-    DoctorResponse(
-        id=UUID("00000000-0000-0000-0000-000000000001"),
-        name="Dr. Ananya Sharma",
-        specialty="General Physician",
-        email="ananya@mediscribe.dev",
-    ),
-    DoctorResponse(
-        id=UUID("00000000-0000-0000-0000-000000000002"),
-        name="Dr. Rajesh Kumar",
-        specialty="Pediatrics",
-        email="rajesh@mediscribe.dev",
-    ),
-    DoctorResponse(
-        id=UUID("00000000-0000-0000-0000-000000000003"),
-        name="Dr. Priya Singh",
-        specialty="Dermatology",
-        email="priya@mediscribe.dev",
-    ),
-    DoctorResponse(
-        id=UUID("00000000-0000-0000-0000-000000000004"),
-        name="Dr. Amit Verma",
-        specialty="Cardiology",
-        email="amit@mediscribe.dev",
-    ),
-    DoctorResponse(
-        id=UUID("00000000-0000-0000-0000-000000000005"),
-        name="Dr. Sunita Rao",
-        specialty="Gynecology",
-        email="sunita@mediscribe.dev",
-    ),
-]
+    class Config:
+        from_attributes = True
 
 
 @router.get("/", response_model=list[DoctorResponse])
-async def list_doctors():
-    return MOCK_DOCTORS
+async def list_doctors(db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Doctor).order_by(Doctor.name))
+    return result.scalars().all()
 
 
 @router.get("/{doctor_id}", response_model=DoctorResponse)
-async def get_doctor(doctor_id: UUID):
-    for d in MOCK_DOCTORS:
-        if d.id == doctor_id:
-            return d
-    return MOCK_DOCTORS[0]
+async def get_doctor(doctor_id: UUID, db: AsyncSession = Depends(get_db)):
+    doc = await db.get(Doctor, doctor_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doctor not found")
+    return doc

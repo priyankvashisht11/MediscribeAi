@@ -282,6 +282,10 @@
 .btnStart:hover:not(:disabled) { background: var(--color-primary-hover); }
 .btnStart:disabled { opacity: 0.45; cursor: not-allowed; }
 
+@media (max-width: 768px) {
+  .page { max-width: 100%; margin: 0; border-radius: 0; min-height: 100dvh; padding: var(--space-4); }
+}
+
 @media (max-width: 480px) {
   .fieldGrid { grid-template-columns: 1fr; }
   .card { padding: var(--space-5); }

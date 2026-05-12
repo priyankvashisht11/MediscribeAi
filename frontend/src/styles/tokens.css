@@ -74,9 +74,20 @@
   --transition: 150ms ease;
   --transition-slow: 250ms ease;
 
+  /* Extended surfaces */
+  --color-primary-highlight: #e6f4f4;
+  --color-surface-dynamic:   #edf2f3;
+  --color-surface-offset:    #ecf0f1;
+  --color-text-faint:        #a0b4b7;
+
   /* Layout */
-  --sidebar-width: 220px;
-  --topbar-height: 48px;
+  --sidebar-width:    220px;
+  --topbar-height:    48px;
+  --content-narrow:   560px;
+  --content-default:  800px;
+
+  /* Interactive transition */
+  --transition-interactive: 150ms ease;
 }
 
 /* ── Dark mode ────────────────────────────────────────────────────────────── */
@@ -93,10 +104,14 @@
   --color-text-disabled:  #3d5a5e;
   --color-text-inverse:   #0f1f21;
 
-  --color-primary:        #2a9da3;
-  --color-primary-hover:  #3ab0b7;
-  --color-primary-light:  #0d2e30;
-  --color-primary-muted:  #1a4a4e;
+  --color-primary:           #2a9da3;
+  --color-primary-hover:     #3ab0b7;
+  --color-primary-light:     #0d2e30;
+  --color-primary-muted:     #1a4a4e;
+  --color-primary-highlight: #0d2e30;
+  --color-surface-dynamic:   #1c2c30;
+  --color-surface-offset:    #1a2a2e;
+  --color-text-faint:        #3d5a5e;
 
   --color-success:        #22c55e;
   --color-success-light:  #052e16;

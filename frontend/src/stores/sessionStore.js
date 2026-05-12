@@ -9,6 +9,12 @@ export const useSessionStore = create((set) => ({
   setCurrentSession: (session) => set({ currentSession: session }),
   addTranscriptChunk: (chunk) =>
     set((s) => ({ transcriptChunks: [...s.transcriptChunks, chunk] })),
+  updateChunkSpeaker: (chunkIndex, speaker) =>
+    set((s) => ({
+      transcriptChunks: s.transcriptChunks.map((c) =>
+        c.chunkIndex === chunkIndex ? { ...c, speaker } : c
+      ),
+    })),
   clearTranscript: () => set({ transcriptChunks: [] }),
   setWsStatus: (status) => set({ wsStatus: status }),
   setActiveSessions: (sessions) => set({ activeSessions: sessions }),

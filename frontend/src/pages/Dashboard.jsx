@@ -1,39 +1,57 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { sessionsApi, doctorsApi } from '../services/api'
-import { Plus, Eye } from 'lucide-react'
+import { useDashboardStats } from '../hooks/useDashboardStats'
+import { useActiveSessions } from '../hooks/useActiveSessions'
+import { useDoctors } from '../context/DoctorsContext'
+import { useUiStore } from '../stores/uiStore'
+import { formatDuration, formatDate } from '../utils/format'
+import { Plus, Activity, Calendar, Mic, FileCheck } from 'lucide-react'
 import styles from './Dashboard.module.css'
 
 /* ── Count-up hook ────────────────────────────────────────────────────────── */
-function useCountUp(target, duration = 800) {
+function useCountUp(target, enabled = true, duration = 800) {
   const [value, setValue] = useState(0)
+  const prevTarget = useRef(0)
+
   useEffect(() => {
+    if (!enabled) { setValue(target ?? 0); return }
+    const end = target ?? 0
+    if (prevTarget.current === end) return
+    prevTarget.current = end
     let start = 0
-    const step = target / (duration / 16)
+    const step = end / (duration / 16)
     const timer = setInterval(() => {
       start += step
-      if (start >= target) { setValue(target); clearInterval(timer) }
+      if (start >= end) { setValue(end); clearInterval(timer) }
       else setValue(Math.floor(start))
     }, 16)
     return () => clearInterval(timer)
-  }, [target, duration])
+  }, [target, enabled, duration])
+
   return value
 }
 
 /* ── KPI Card ─────────────────────────────────────────────────────────────── */
-function KpiCard({ label, value, delta, deltaLabel }) {
-  const animated = useCountUp(value)
-  const positive = delta >= 0
+function KpiCard({ label, value, icon: Icon, color, pulse, animate }) {
+  const animated = useCountUp(value, animate)
+  return (
+    <div className={`${styles.kpiCard} ${pulse ? 'kpi-card--pulse' : ''}`}
+         style={{ borderTopColor: `var(--color-${color === 'muted' ? 'border' : color})` }}>
+      <div className={styles.kpiTop}>
+        <span className={styles.kpiLabel}>{label}</span>
+        {Icon && <Icon size={16} style={{ color: `var(--color-${color === 'muted' ? 'text-muted' : color})` }} />}
+      </div>
+      <span className={styles.kpiValue}>{animated}</span>
+    </div>
+  )
+}
+
+/* ── KPI Skeleton ─────────────────────────────────────────────────────────── */
+function KpiSkeleton() {
   return (
     <div className={styles.kpiCard}>
-      <span className={styles.kpiLabel}>{label}</span>
-      <span className={styles.kpiValue}>{animated}</span>
-      {delta !== undefined && (
-        <span className={`${styles.kpiDelta} ${positive ? styles.positive : styles.negative}`}>
-          {positive ? '↑' : '↓'} {Math.abs(delta)} {deltaLabel}
-        </span>
-      )}
+      <div className={`skeleton-box ${styles.skeletonLabel}`} />
+      <div className={`skeleton-box ${styles.skeletonValue}`} />
     </div>
   )
 }
@@ -48,51 +66,46 @@ function StatusChip({ status }) {
   )
 }
 
-/* ── Session card ─────────────────────────────────────────────────────────── */
-function SessionCard({ session, doctors }) {
-  const navigate = useNavigate()
-  const doctor = doctors?.find((d) => d.id === session.doctor_id)
-  const [elapsed, setElapsed] = useState(0)
+/* ── Active Session Card ──────────────────────────────────────────────────── */
+function ActiveSessionCard({ session, getDoctorName, onNavigate }) {
+  const [elapsed, setElapsed] = useState(() => {
+    if (!session.started_at) return 0
+    return Math.floor((Date.now() - new Date(session.started_at).getTime()) / 1000)
+  })
 
   useEffect(() => {
     if (session.status !== 'recording') return
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    const t = setInterval(() => setElapsed(e => e + 1), 1000)
     return () => clearInterval(t)
   }, [session.status])
 
-  const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   return (
     <div className={styles.sessionCard}>
       <div className={styles.sessionCardTop}>
         <div>
-          <p className={styles.sessionDoctor}>{doctor?.name ?? 'Unknown Doctor'}</p>
-          <span className={styles.specialtyBadge}>{doctor?.specialty}</span>
+          <p className={styles.sessionDoctor}>{getDoctorName(session.doctor_id)}</p>
         </div>
         <StatusChip status={session.status} />
       </div>
-      <p className={styles.sessionPatient}>
-        {session.patient_name ?? 'Patient not assigned'}
-      </p>
+      <p className={styles.sessionPatient}>{session.patient_name ?? 'Patient not assigned'}</p>
       {session.status === 'recording' && (
         <p className={styles.sessionTimer}>{fmt(elapsed)}</p>
       )}
-      <button
-        className={styles.sessionAction}
-        onClick={() =>
-          navigate(
-            session.status === 'completed'
-              ? `/sessions/${session.id}/review`
-              : `/sessions/${session.id}/live`
-          )
-        }
-      >
-        {session.status === 'completed' ? (
-          <><Eye size={13} /> View Note</>
-        ) : (
-          'Open Session'
-        )}
+      <button className={styles.sessionAction} onClick={onNavigate}>
+        Open Session
       </button>
+    </div>
+  )
+}
+
+/* ── Active Session Card Skeleton ─────────────────────────────────────────── */
+function ActiveCardSkeleton() {
+  return (
+    <div className={styles.sessionCard}>
+      <div className={`skeleton-box ${styles.skeletonLine}`} style={{ width: '60%', height: 16 }} />
+      <div className={`skeleton-box ${styles.skeletonLine}`} style={{ width: '40%', height: 12, marginTop: 8 }} />
     </div>
   )
 }
@@ -100,17 +113,60 @@ function SessionCard({ session, doctors }) {
 /* ── Main Dashboard ───────────────────────────────────────────────────────── */
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { data: sessions = [] } = useQuery({ queryKey: ['sessions'], queryFn: sessionsApi.list })
-  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: doctorsApi.list })
+  const addToast = useUiStore((s) => s.addToast)
+  const { stats, loading: statsLoading, error: statsError, hasAnimated, refresh } = useDashboardStats()
+  const { sessions: activeSessions, loading: activeLoading } = useActiveSessions(10000)
+  const { getDoctorName } = useDoctors()
 
-  const active = sessions.filter((s) => s.status === 'recording').length
-  const completed = sessions.filter((s) => s.status === 'completed').length
-  const pending = sessions.filter((s) => s.status !== 'completed').length
+  if (statsError && !stats) {
+    return (
+      <div className="error-state">
+        <Activity size={24} style={{ color: 'var(--color-error)' }} />
+        <p className="error-state-message">Failed to load dashboard: {statsError}</p>
+        <button className="btn btn-ghost btn-sm" onClick={refresh}>Try Again</button>
+      </div>
+    )
+  }
 
-  const [page, setPage] = useState(1)
-  const PER_PAGE = 10
-  const totalPages = Math.ceil(sessions.length / PER_PAGE)
-  const pageRows = sessions.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const isFirstRun = !statsLoading && stats?.total_sessions === 0
+
+  if (isFirstRun) {
+    return (
+      <div className="first-run-screen">
+        <div className="first-run-content">
+          <div className="first-run-icon">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <circle cx="32" cy="32" r="30" stroke="var(--color-primary)" strokeWidth="2"/>
+              <path d="M32 18v28M18 32h28" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <h1 className="first-run-title">Welcome to MediScribe</h1>
+          <p className="first-run-desc">
+            AI-assisted clinical documentation for Indian practitioners.
+            Start your first session to begin.
+          </p>
+          <div className="first-run-actions">
+            <button className="btn btn-primary btn-lg" onClick={() => navigate('/sessions/new')}>
+              Start First Session
+            </button>
+            <button
+              className="btn btn-secondary"
+              onClick={() => addToast({ type: 'info', message: 'Run: docker compose exec backend python scripts/seed_demo.py' })}
+            >
+              Load Demo Data
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const KPI_CARDS = [
+    { label: 'Total Sessions',  value: stats?.total_sessions,  icon: Activity,   color: 'primary' },
+    { label: 'Today',           value: stats?.today_sessions,  icon: Calendar,   color: 'success' },
+    { label: 'Recording Now',   value: stats?.recording_now,   icon: Mic,        color: stats?.recording_now > 0 ? 'error' : 'muted', pulse: (stats?.recording_now ?? 0) > 0 },
+    { label: 'Notes Finalized', value: stats?.finalized_notes, icon: FileCheck,  color: 'primary' },
+  ]
 
   return (
     <div className={styles.page}>
@@ -124,71 +180,73 @@ export default function Dashboard() {
 
       {/* Zone 1 — KPIs */}
       <div className={styles.kpiGrid}>
-        <KpiCard label="Active Now" value={active} delta={active} deltaLabel="sessions" />
-        <KpiCard label="Today's Sessions" value={sessions.length} delta={3} deltaLabel="vs yesterday" />
-        <KpiCard label="Notes Pending" value={pending} />
-        <KpiCard label="Avg Session (min)" value={12} />
+        {statsLoading
+          ? Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />)
+          : KPI_CARDS.map(card => (
+              <KpiCard
+                key={card.label}
+                label={card.label}
+                value={card.value ?? 0}
+                icon={card.icon}
+                color={card.color}
+                pulse={card.pulse}
+                animate={!hasAnimated.current}
+              />
+            ))
+        }
       </div>
 
       {/* Zone 2 — Active sessions */}
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Active Sessions</h2>
-        {sessions.length === 0 ? (
-          <p className={styles.empty}>No active sessions right now.</p>
+        {activeLoading ? (
+          <div className={styles.sessionGrid}>
+            <ActiveCardSkeleton />
+            <ActiveCardSkeleton />
+          </div>
+        ) : activeSessions.length === 0 ? (
+          <div className={styles.empty}>
+            <Mic size={32} strokeWidth={1} style={{ color: 'var(--color-text-faint)' }} />
+            <p>No active sessions right now.</p>
+          </div>
         ) : (
           <div className={styles.sessionGrid}>
-            {sessions.slice(0, 5).map((s) => (
-              <SessionCard key={s.id} session={s} doctors={doctors} />
+            {activeSessions.map(s => (
+              <ActiveSessionCard
+                key={s.id}
+                session={s}
+                getDoctorName={getDoctorName}
+                onNavigate={() => navigate(`/sessions/${s.id}/live`)}
+              />
             ))}
           </div>
         )}
       </section>
 
-      {/* Zone 3 — Recent sessions table */}
-      <section className={styles.section}>
-        <h2 className={styles.sectionTitle}>Recent Sessions</h2>
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Doctor</th>
-                <th>Patient</th>
-                <th>Date / Time</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageRows.map((s) => {
-                const doc = doctors.find((d) => d.id === s.doctor_id)
-                return (
-                  <tr key={s.id}>
-                    <td>{doc?.name ?? '—'}</td>
-                    <td>{s.patient_name ?? '—'}</td>
-                    <td>{new Date(s.created_at).toLocaleString()}</td>
-                    <td><StatusChip status={s.status} /></td>
-                    <td>
-                      <button
-                        className={styles.viewBtn}
-                        onClick={() => navigate(`/sessions/${s.id}/review`)}
-                      >
-                        <Eye size={13} /> View Note
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        {totalPages > 1 && (
-          <div className={styles.pagination}>
-            <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-            <span>Page {page} of {totalPages}</span>
-            <button disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>Next →</button>
+      {/* Zone 3 — Quick stats row */}
+      {!statsLoading && stats && (
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Session Breakdown</h2>
+          <div className={styles.statsRow}>
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{stats.completed_sessions}</span>
+              <span className={styles.statLabel}>Completed</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{stats.idle_sessions}</span>
+              <span className={styles.statLabel}>Idle</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{formatDuration(stats.avg_duration_seconds)}</span>
+              <span className={styles.statLabel}>Avg Duration</span>
+            </div>
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{stats.finalized_notes}</span>
+              <span className={styles.statLabel}>Notes Done</span>
+            </div>
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   )
 }

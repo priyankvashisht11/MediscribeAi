@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { doctorsApi, sessionsApi } from '../services/api'
+import { sessionsApi } from '../services/api'
+import { useDoctors } from '../context/DoctorsContext'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { Lock, Mic } from 'lucide-react'
@@ -14,7 +14,7 @@ export default function NewSession() {
   const setCurrentSession = useSessionStore((s) => s.setCurrentSession)
   const addToast = useUiStore((s) => s.addToast)
 
-  const { data: doctors = [] } = useQuery({ queryKey: ['doctors'], queryFn: doctorsApi.list })
+  const { doctors } = useDoctors()
 
   const [step, setStep] = useState(0)
   const [doctorId, setDoctorId] = useState('')

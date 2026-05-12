@@ -27,7 +27,8 @@ export function useSessionWs(sessionId) {
     useSessionStore.getState().setWsStatus('connecting')
     setConnectionError(null)
 
-    const base = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const base = `${proto}//${window.location.host}`
     const ws = new WebSocket(`${base}/ws/session/${sessionId}`)
     wsRef.current = ws
 
@@ -38,7 +39,10 @@ export function useSessionWs(sessionId) {
     }
 
     ws.onclose = (event) => {
-      if (!isMountedRef.current) return
+      // cancelled.value is true when StrictMode cleanup already ran for this mount.
+      // Without this check, WS1's onclose fires after WS2 has connected and
+      // overwrites wsStatus back to 'disconnected', killing the mic.
+      if (!isMountedRef.current || cancelled?.value) return
       useSessionStore.getState().setWsStatus('disconnected')
 
       const shouldReconnect =
@@ -61,7 +65,7 @@ export function useSessionWs(sessionId) {
     }
 
     ws.onerror = () => {
-      if (!isMountedRef.current) return
+      if (!isMountedRef.current || cancelled?.value) return
       useSessionStore.getState().setWsStatus('error')
     }
 
@@ -129,7 +133,7 @@ export function useSessionWs(sessionId) {
       clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close(1000, 'Component unmounted')
     }
-  }, [sessionId, connect])
+  }, [sessionId]) // ✅ connect intentionally excluded — stable via connectRef
 
   return { sendAudioChunk, connectionError }
 }

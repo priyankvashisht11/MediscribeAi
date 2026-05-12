@@ -6,6 +6,7 @@ import { useSessionStore } from '../stores/sessionStore'
 import { useSessionWs } from '../hooks/useSessionWs'
 import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useUiStore } from '../stores/uiStore'
+import { apiFetch } from '../utils/apiFetch'
 import { Square, RefreshCw } from 'lucide-react'
 import styles from './ActiveSession.module.css'
 
@@ -17,21 +18,36 @@ function formatDuration(seconds) {
 }
 
 // Transcript message component
-function TranscriptMessage({ chunk }) {
+function TranscriptMessage({ chunk, onToggleSpeaker }) {
   const isDoctor  = chunk.speaker === 'doctor'
-  const isUnknown = chunk.speaker === 'unknown'
+  const isPatient = chunk.speaker === 'patient'
+  const isUnknown = !isDoctor && !isPatient
   const isLowConf = typeof chunk.confidence === 'number' && chunk.confidence < 0.5
+
+  function cycleSpeaker() {
+    const next = isDoctor ? 'patient' : isPatient ? 'doctor' : 'doctor'
+    onToggleSpeaker(chunk.chunkIndex, next)
+  }
+
+  const speakerLabel = isDoctor ? 'Doctor' : isPatient ? 'Patient' : 'Speaking'
+  const speakerIcon  = isDoctor ? '🩺' : isPatient ? '👤' : '🎙'
+  const speakerColor = isDoctor ? 'var(--color-primary)' : 'var(--color-text-muted)'
 
   return (
     <div className="transcript-msg" style={{ marginBottom: 'var(--space-3)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
                     marginBottom: 'var(--space-1)' }}>
-        <span style={{
-          fontSize: 'var(--text-xs)', fontWeight: 600, letterSpacing: '0.05em',
-          color: isDoctor ? 'var(--color-primary)' : 'var(--color-text-muted)',
-          textTransform: 'uppercase',
-        }}>
-          {isDoctor ? '🩺 Doctor' : isUnknown ? '🎙 Speaking' : '👤 Patient'}
+        <span
+          title="Click to reassign speaker"
+          onClick={cycleSpeaker}
+          style={{
+            fontSize: 'var(--text-xs)', fontWeight: 600, letterSpacing: '0.05em',
+            color: speakerColor, textTransform: 'uppercase',
+            cursor: 'pointer', userSelect: 'none',
+            padding: '1px 6px', borderRadius: 'var(--radius-sm)',
+            border: `1px solid ${isUnknown ? 'transparent' : speakerColor}`,
+          }}>
+          {speakerIcon} {speakerLabel}
         </span>
         {chunk.start !== undefined && (
           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
@@ -84,6 +100,23 @@ function TranscriptEmptyState({ wsStatus, micStatus, micError }) {
   )
 }
 
+// Speaker diarization warm-up hint — shown while all chunks are still "unknown"
+function DiarizationWarmupHint({ transcriptChunks, wsStatus, micStatus }) {
+  if (
+    wsStatus !== 'connected' ||
+    micStatus !== 'recording' ||
+    transcriptChunks.length === 0 ||
+    !transcriptChunks.every(c => c.speaker === 'unknown')
+  ) return null
+
+  return (
+    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
+                  textAlign: 'center', padding: 'var(--space-2) var(--space-4)' }}>
+      Identifying speakers... labels appear after ~30s of audio
+    </div>
+  )
+}
+
 // Confidence bar component
 function ConfidenceBar({ score }) {
   const pct = Math.round((score ?? 0) * 100)
@@ -104,13 +137,17 @@ export default function ActiveSession() {
   const { id: sessionId } = useParams()
   const navigate = useNavigate()
   const addToast = useUiStore((s) => s.addToast)
-  const { transcriptChunks, wsStatus, clearTranscript } = useSessionStore()
+  const { transcriptChunks, wsStatus, clearTranscript, updateChunkSpeaker } = useSessionStore()
 
   const feedRef = useRef(null)
   const [elapsed, setElapsed] = useState(0)
   const [note, setNote] = useState(null)
   const [noteFields, setNoteFields] = useState({})
   const [ending, setEnding] = useState(false)
+
+  const speakerMapEstablished = transcriptChunks.some(
+    c => c.speaker === 'doctor' || c.speaker === 'patient'
+  )
 
   // Clear any transcript from a previous session on mount
   useEffect(() => {
@@ -126,9 +163,12 @@ export default function ActiveSession() {
     isConnected: wsStatus === 'connected',
   })
 
-  // Auto-start mic once WebSocket confirms connection
+  // Auto-start mic once WebSocket confirms connection.
+  // Covers 'idle' (fresh mount), 'stopped' (StrictMode reconnect killed mic),
+  // and 'error' (recorder crashed — retry). Never retries 'denied' (user blocked permission).
   useEffect(() => {
-    if (wsStatus === 'connected' && (micStatus === 'idle' || micStatus === 'stopped')) {
+    if (wsStatus === 'connected' && ['idle', 'stopped', 'error'].includes(micStatus)) {
+      console.log('[ActiveSession] auto-start: wsStatus=connected micStatus=' + micStatus)
       startCapture()
     }
   }, [wsStatus, micStatus, startCapture])
@@ -164,9 +204,19 @@ export default function ActiveSession() {
   const fmt = (s) =>
     `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-  const handleEndSession = () => {
-    stopCapture()                              // Stop microphone first
-    navigate(`/sessions/${sessionId}/review`) // WS closes automatically on unmount
+  const handleEndSession = async () => {
+    setEnding(true)
+    try {
+      // PATCH /end first — reads transcript from Redis while WebSocket is still open.
+      // stopCapture() second — closing the WS triggers Redis cleanup in ws.py.
+      const res = await apiFetch(`/api/sessions/${sessionId}/end`, { method: 'PATCH' })
+      if (!res.ok) addToast({ type: 'warning', message: `Session ended but note trigger failed (${res.status})` })
+    } catch (e) {
+      console.warn('[ActiveSession] end session call failed:', e)
+      addToast({ type: 'warning', message: 'Could not trigger note generation — transcript may be missing' })
+    }
+    try { stopCapture() } catch (_) {}
+    navigate(`/sessions/${sessionId}/review`)
   }
 
   return (
@@ -191,6 +241,41 @@ export default function ActiveSession() {
                 </span>
               )}
             </div>
+            {speakerMapEstablished && (
+              <div style={{ display: 'flex', gap: 'var(--space-4)', fontSize: 'var(--text-xs)',
+                            color: 'var(--color-text-muted)', paddingTop: 'var(--space-2)' }}>
+                <span>🩺 <strong>Doctor</strong></span>
+                <span>👤 <strong>Patient</strong></span>
+                <span style={{ color: 'var(--color-text-faint)' }}>🎙 Speaker being identified...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Debug status bar — shows live wsStatus + micStatus */}
+          <div style={{
+            fontSize: 'var(--text-xs)', padding: 'var(--space-1) var(--space-4)',
+            background: '#f8f8f8', borderBottom: '1px solid var(--color-border)',
+            display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap',
+          }}>
+            <span>WS: <strong style={{ color: wsStatus === 'connected' ? 'green' : 'orange' }}>{wsStatus}</strong></span>
+            <span>Mic: <strong style={{ color: micStatus === 'recording' ? 'green' : micStatus === 'denied' ? 'red' : 'orange' }}>{micStatus}</strong></span>
+            {wsStatus === 'connected' && micStatus !== 'recording' && micStatus !== 'requesting' && micStatus !== 'denied' && (
+              <button
+                onClick={() => { console.log('[ActiveSession] manual startCapture'); startCapture() }}
+                style={{
+                  fontSize: 'var(--text-xs)', padding: '2px 10px',
+                  background: 'var(--color-primary)', color: '#fff',
+                  border: 'none', borderRadius: '4px', cursor: 'pointer',
+                }}
+              >
+                Start Recording
+              </button>
+            )}
+            {micStatus === 'denied' && (
+              <span style={{ color: 'red' }}>
+                Mic blocked — click 🔒 in address bar → allow microphone → refresh
+              </span>
+            )}
           </div>
 
           {/* Connection error banner */}
@@ -211,8 +296,13 @@ export default function ActiveSession() {
             ) : (
               <div className="transcript-feed">
                 {transcriptChunks.map((chunk, i) => (
-                  <TranscriptMessage key={chunk.chunkIndex ?? i} chunk={chunk} />
+                  <TranscriptMessage key={chunk.chunkIndex ?? i} chunk={chunk} onToggleSpeaker={updateChunkSpeaker} />
                 ))}
+                <DiarizationWarmupHint
+                  transcriptChunks={transcriptChunks}
+                  wsStatus={wsStatus}
+                  micStatus={micStatus}
+                />
               </div>
             )}
           </div>

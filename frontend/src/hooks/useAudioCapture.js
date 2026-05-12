@@ -38,10 +38,10 @@ export function useAudioCapture({ onChunk, isConnected }) {
   const [micStatus, setMicStatus] = useState('idle')
   const [errorMessage, setErrorMessage] = useState(null)
 
-  const streamRef = useRef(null)    // Active MediaStream
-  const recorderRef = useRef(null)  // Active MediaRecorder
-  // Ref so ondataavailable always reads the latest isConnected value (avoids stale closure)
+  const streamRef = useRef(null)
+  const recorderRef = useRef(null)
   const isConnectedRef = useRef(isConnected)
+  const intentionalStopRef = useRef(false)
   useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
 
   const stopCapture = useCallback(() => {
@@ -58,8 +58,16 @@ export function useAudioCapture({ onChunk, isConnected }) {
   }, [])
 
   const startCapture = useCallback(async () => {
+    console.log('[AudioCapture] startCapture called — recorderRef:', !!recorderRef.current, 'streamRef:', !!streamRef.current)
+    // Guard: don't start if already recording or requesting
+    if (recorderRef.current || streamRef.current) {
+      console.log('[AudioCapture] Guard hit — already active, skipping')
+      return
+    }
+
     setErrorMessage(null)
     setMicStatus('requesting')
+    console.log('[AudioCapture] calling getUserMedia...')
 
     // 1. Request microphone permission
     let stream
@@ -75,6 +83,7 @@ export function useAudioCapture({ onChunk, isConnected }) {
         video: false,
       })
     } catch (err) {
+      console.log('[AudioCapture] getUserMedia FAILED:', err.name, err.message)
       let msg
       if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
         msg = 'Microphone access denied. Please allow microphone access in browser settings and try again.'
@@ -88,6 +97,7 @@ export function useAudioCapture({ onChunk, isConnected }) {
       return
     }
 
+    console.log('[AudioCapture] getUserMedia SUCCESS — stream tracks:', stream.getTracks().length)
     streamRef.current = stream
     setMicStatus('granted')
 
@@ -118,8 +128,8 @@ export function useAudioCapture({ onChunk, isConnected }) {
       setMicStatus('stopped')
     }
 
-    // 4. Start recording — ondataavailable fires every 1000ms
-    recorder.start(1000)
+    // 4. Start recording — ondataavailable fires every 250ms for low latency with Deepgram
+    recorder.start(250)
     setMicStatus('recording')
 
   }, [onChunk, stopCapture]) // ✅ isConnected removed — we use isConnectedRef inside

@@ -167,10 +167,44 @@
   display: none;
 }
 
+/* ── Bottom tab bar (hidden on desktop) ─────────────────────────────────── */
+.bottomTabs {
+  display: none;
+}
+
+.bottomTab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  min-height: 56px;
+  transition: color var(--transition);
+}
+
+.bottomTabActive {
+  color: var(--color-primary);
+}
+
+.bottomTabAccent {
+  color: var(--color-primary);
+}
+
+.bottomTabLabel {
+  font-size: 10px;
+  line-height: 1;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .shell {
     grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-height) 1fr 56px;
   }
 
   .sidebar {
@@ -197,14 +231,25 @@
 
   .topbar {
     grid-column: 1;
+    grid-row: 1;
   }
 
   .main {
     grid-column: 1;
+    grid-row: 2;
     padding: var(--space-4);
   }
 
   .hamburger {
     display: flex;
+  }
+
+  .bottomTabs {
+    display: flex;
+    grid-column: 1;
+    grid-row: 3;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
