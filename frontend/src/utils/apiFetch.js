@@ -7,5 +7,6 @@ export function apiFetch(url, options = {}) {
     ...(activeDoctorId ? { 'X-Doctor-Id': activeDoctorId } : {}),
     ...(options.headers ?? {}),
   }
-  return fetch(url, { ...options, headers })
+  const base = import.meta.env.VITE_API_URL || ''
+  return fetch(`${base}${url}`, { ...options, headers })
 }

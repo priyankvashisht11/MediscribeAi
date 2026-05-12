@@ -27,8 +27,10 @@ export function useSessionWs(sessionId) {
     useSessionStore.getState().setWsStatus('connecting')
     setConnectionError(null)
 
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const base = `${proto}//${window.location.host}`
+    const apiUrl = import.meta.env.VITE_API_URL
+    const base = apiUrl
+      ? apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws')
+      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
     const ws = new WebSocket(`${base}/ws/session/${sessionId}`)
     wsRef.current = ws
 

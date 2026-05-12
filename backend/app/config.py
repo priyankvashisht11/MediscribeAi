@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     # Get from: https://console.deepgram.com → Create API Key
     # Nova-3 model, Indian English, speaker diarization enabled
 
+    # CORS — comma-separated list of allowed frontend origins
+    # Dev default is localhost:3000. In production set to your Vercel URL.
+    # Example: ALLOWED_ORIGINS=https://mediscribe.vercel.app,https://mediscribe.yourdomain.com
+    allowed_origins: str = "http://localhost:3000"
+
     max_concurrent_sessions: int = 5
     # POC hard limit: 5 simultaneous doctor sessions.
 

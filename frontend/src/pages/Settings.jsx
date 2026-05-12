@@ -27,7 +27,7 @@ export default function Settings() {
     { label: 'API Server', ok: health?.status === 'ok' },
     { label: 'Database',   ok: health?.db    === 'ok' },
     { label: 'Redis',      ok: health?.redis  === 'ok' },
-    { label: 'ASR Model',  ok: health?.asr    === 'ok' },
+    { label: 'Deepgram',   ok: health?.deepgram === 'configured' },
   ]
 
   return (
@@ -94,10 +94,10 @@ export default function Settings() {
         <table className="settings-table">
           <tbody>
             <tr><td>Version</td><td>0.1.0-poc</td></tr>
-            <tr><td>Build</td><td>Sprint 6</td></tr>
-            <tr><td>LLM Provider</td><td>Perplexity r1-1776</td></tr>
-            <tr><td>ASR Model</td><td>faster-whisper medium (int8)</td></tr>
-            <tr><td>Diarization</td><td>pyannote/speaker-diarization 3.1</td></tr>
+            <tr><td>Build</td><td>Sprint 7</td></tr>
+            <tr><td>LLM Provider</td><td>Perplexity sonar-reasoning-pro</td></tr>
+            <tr><td>ASR Model</td><td>Deepgram Nova-3 (en-IN)</td></tr>
+            <tr><td>Diarization</td><td>Deepgram Nova-3 (built-in)</td></tr>
           </tbody>
         </table>
       </div>
