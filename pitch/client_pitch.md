@@ -42,7 +42,9 @@ At the end of the consult, a complete SOAP note appears:
 - Plan (medications, tests, follow-up)
 - ICD-10 Codes (for billing and insurance)
 
-One click to export as a clinic-branded PDF. One click to finalize and sign.
+One click to finalize and sign. Then export:
+- **Prescription PDF** — structured Rx ready to hand to the patient or pharmacist
+- **Patient Instructions PDF** — plain-English summary: what was found, medications, tests needed, warning signs to watch for
 
 ---
 
@@ -50,9 +52,9 @@ One click to export as a clinic-branded PDF. One click to finalize and sign.
 
 | What | How |
 |------|-----|
-| Transcription | Deepgram Nova-3 — trained on medical vocabulary, works in Indian English, handles accents |
-| SOAP Generation | Perplexity sonar-reasoning-pro — medical reasoning model, not a generic chatbot |
-| Speaker Separation | Built-in diarization — knows who is the doctor and who is the patient |
+| Transcription | MediScribe Voice Engine — trained on medical vocabulary, works in Indian English, handles accents |
+| SOAP Generation | MediScribe Clinical AI — purpose-built medical reasoning, not a generic chatbot |
+| Speaker Separation | Built-in diarization — first speaker is automatically assigned as doctor, tuned for Indian OPD workflows |
 | Data Residency | All infrastructure in Mumbai (ap-south-1) — data stays in India |
 | Security | HTTPS everywhere, no audio stored after transcription |
 
@@ -94,8 +96,11 @@ Fully functional:
 - Real-time transcription ✓
 - SOAP note generation ✓
 - ICD-10 code suggestions ✓
-- PDF export with clinic branding ✓
+- Prescription PDF export (doctor-ready, auto-structured from note) ✓
+- Patient instructions PDF (plain-English, medications + warning signs) ✓
 - Session history and doctor profiles ✓
+- Usage analytics (sessions, ICD breakdown, weekly trends) ✓
+- PIN-protected access control ✓
 - Works on any device, any browser ✓
 
 ---

@@ -27,10 +27,10 @@ export default function Settings() {
   }, [])
 
   const STATUS_ITEMS = [
-    { label: 'API Server', ok: health?.status === 'ok' },
-    { label: 'Database',   ok: health?.db    === 'ok' },
-    { label: 'Redis',      ok: health?.redis  === 'ok' },
-    { label: 'Deepgram',   ok: health?.deepgram === 'configured' },
+    { label: 'API Server',        ok: health?.status === 'ok' },
+    { label: 'Database',          ok: health?.db    === 'ok' },
+    { label: 'Session Cache',     ok: health?.redis  === 'ok' },
+    { label: 'Voice Engine',      ok: health?.deepgram === 'configured' },
   ]
 
   return (
@@ -98,9 +98,9 @@ export default function Settings() {
           <tbody>
             <tr><td>Version</td><td>0.1.0-poc</td></tr>
             <tr><td>Build</td><td>Sprint 8</td></tr>
-            <tr><td>LLM Provider</td><td>Perplexity sonar-reasoning-pro</td></tr>
-            <tr><td>ASR Model</td><td>Deepgram Nova-3 (en-IN)</td></tr>
-            <tr><td>Diarization</td><td>Deepgram Nova-3 (built-in)</td></tr>
+            <tr><td>AI Engine</td><td>MediScribe Clinical AI</td></tr>
+            <tr><td>Speech Recognition</td><td>MediScribe Voice Engine (en-IN)</td></tr>
+            <tr><td>Speaker Detection</td><td>MediScribe Voice Engine (built-in)</td></tr>
           </tbody>
         </table>
       </div>
