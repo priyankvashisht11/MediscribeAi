@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useDoctors } from '../context/DoctorsContext'
 import { useUiStore } from '../stores/uiStore'
+import { authHeader } from '../utils/apiFetch'
+
+const BASE = import.meta.env.VITE_API_URL || ''
 
 function getInitials(name) {
   return name
@@ -17,7 +20,7 @@ export default function Settings() {
   const [health, setHealth] = useState(null)
 
   useEffect(() => {
-    fetch('/health')
+    fetch(`${BASE}/health`, { headers: authHeader() })
       .then(r => r.json())
       .then(setHealth)
       .catch(() => setHealth({ status: 'error' }))
@@ -94,7 +97,7 @@ export default function Settings() {
         <table className="settings-table">
           <tbody>
             <tr><td>Version</td><td>0.1.0-poc</td></tr>
-            <tr><td>Build</td><td>Sprint 7</td></tr>
+            <tr><td>Build</td><td>Sprint 8</td></tr>
             <tr><td>LLM Provider</td><td>Perplexity sonar-reasoning-pro</td></tr>
             <tr><td>ASR Model</td><td>Deepgram Nova-3 (en-IN)</td></tr>
             <tr><td>Diarization</td><td>Deepgram Nova-3 (built-in)</td></tr>

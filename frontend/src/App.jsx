@@ -15,6 +15,7 @@ const TranscriptViewer = lazy(() => import('./pages/TranscriptViewer'))
 const DoctorsPage      = lazy(() => import('./pages/Doctors'))
 const Settings         = lazy(() => import('./pages/Settings'))
 const Analytics        = lazy(() => import('./pages/Analytics'))
+const Help             = lazy(() => import('./pages/Help'))
 
 function PageLoader() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
             <Route path="doctors" element={<Suspense fallback={<PageLoader />}><DoctorsPage /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
+            <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>
