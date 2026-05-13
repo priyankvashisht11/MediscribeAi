@@ -61,9 +61,14 @@ def build_speaker_map(
                 return new_map
         return existing_map or {}
 
-    sorted_speakers = sorted(speaker_time.items(), key=lambda x: x[1], reverse=True)
-    doctor_id = sorted_speakers[0][0]
-    patient_id = sorted_speakers[1][0]
+    # First speaker heard = doctor (OPD clinics: doctor always initiates)
+    first_speaker = min(
+        (s for s in window_segs if s.get("raw_speaker")),
+        key=lambda s: s.get("start", float("inf")),
+    )["raw_speaker"]
+    other_speakers = [spk for spk in speaker_time if spk != first_speaker]
+    doctor_id = first_speaker
+    patient_id = other_speakers[0]
 
     new_map = {doctor_id: "doctor", patient_id: "patient"}
     logger.info(f"Speaker map built: {new_map} (time: {speaker_time})")
