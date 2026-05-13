@@ -141,7 +141,7 @@ async def icd_breakdown(
         FROM clinical_notes cn
         JOIN sessions s ON s.id = cn.session_id,
              jsonb_array_elements(cn.icd_codes) AS elem
-        WHERE (:doctor_id IS NULL OR s.doctor_id = :doctor_id::uuid)
+        WHERE (:doctor_id IS NULL OR s.doctor_id = CAST(:doctor_id AS uuid))
           AND cn.icd_codes IS NOT NULL
           AND jsonb_array_length(cn.icd_codes) > 0
         GROUP BY code, description
@@ -167,7 +167,7 @@ async def sessions_by_day(
         FROM sessions
         WHERE status = 'completed'
           AND created_at >= :start
-          AND (:doctor_id IS NULL OR doctor_id = :doctor_id::uuid)
+          AND (:doctor_id IS NULL OR doctor_id = CAST(:doctor_id AS uuid))
         GROUP BY day
     """)
     result = await db.execute(sql, {
