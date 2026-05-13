@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 const POLL_INTERVAL_MS = 2000
 const MAX_POLL_ATTEMPTS = 30  // 60s max (30 × 2s)
 
@@ -18,7 +20,7 @@ export function useNote(sessionId) {
     if (!sessionId || !isMountedRef.current) return
 
     try {
-      const res = await fetch(`/api/notes/${sessionId}`)
+      const res = await fetch(`${BASE}/api/notes/${sessionId}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
 
@@ -51,7 +53,7 @@ export function useNote(sessionId) {
 
       if (data.status === 'not_started') {
         setStatus('generating')
-        await fetch(`/api/notes/${sessionId}/generate`, { method: 'POST' })
+        await fetch(`${BASE}/api/notes/${sessionId}/generate`, { method: 'POST' })
         pollTimerRef.current = setTimeout(fetchNote, POLL_INTERVAL_MS)
         return
       }

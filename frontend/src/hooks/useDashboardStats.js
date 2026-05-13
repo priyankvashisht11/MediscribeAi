@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 export function useDashboardStats(doctorId = null) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -9,7 +11,7 @@ export function useDashboardStats(doctorId = null) {
   const fetch_ = useCallback(async () => {
     try {
       const params = doctorId ? `?doctor_id=${doctorId}` : ''
-      const res = await fetch(`/api/sessions/stats/summary${params}`)
+      const res = await fetch(`${BASE}/api/sessions/stats/summary${params}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setStats(data)

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useDebounce } from './useDebounce'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 export function useSessionHistory() {
   const [filters, setFilters] = useState({
     search: '', status: '', doctorId: '',
@@ -23,7 +25,7 @@ export function useSessionHistory() {
       if (filters.dateTo)   p.set('date_to', new Date(filters.dateTo + 'T23:59:59').toISOString())
       p.set('page', filters.page)
       p.set('page_size', filters.pageSize)
-      const res = await fetch(`/api/sessions/?${p}`)
+      const res = await fetch(`${BASE}/api/sessions/?${p}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setData(await res.json())
       setError(null)

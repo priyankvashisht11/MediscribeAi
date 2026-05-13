@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../utils/apiFetch'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 export default function TranscriptViewer() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
@@ -14,8 +16,8 @@ export default function TranscriptViewer() {
     setLoading(true)
     setError(null)
     Promise.all([
-      fetch(`/api/sessions/${sessionId}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
-      fetch(`/api/sessions/${sessionId}/transcript`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+      fetch(`${BASE}/api/sessions/${sessionId}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
+      fetch(`${BASE}/api/sessions/${sessionId}/transcript`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() }),
     ])
       .then(([sess, trans]) => {
         setSession(sess)

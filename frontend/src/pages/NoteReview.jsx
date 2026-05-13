@@ -7,6 +7,8 @@ import { ArrowLeft, Printer, FileDown, CheckCircle, FileText } from 'lucide-reac
 import { apiFetch } from '../utils/apiFetch'
 import styles from './NoteReview.module.css'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 const SOAP_SECTIONS = [
   { key: 'subjective',  label: 'Subjective (S)' },
   { key: 'objective',   label: 'Objective (O)' },
@@ -118,7 +120,7 @@ export default function NoteReview() {
 
   useEffect(() => {
     if (!noteId) return
-    fetch(`/api/notes/${noteId}/audit`)
+    fetch(`${BASE}/api/notes/${noteId}/audit`)
       .then(r => r.json())
       .then(setAuditLog)
       .catch(() => {})

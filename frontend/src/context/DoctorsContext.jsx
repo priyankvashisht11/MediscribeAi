@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 const DoctorsCtx = createContext({ doctors: [], getDoctorName: () => '—', loading: true, error: null, refresh: () => {} })
 
 export function DoctorsProvider({ children }) {
@@ -10,7 +12,7 @@ export function DoctorsProvider({ children }) {
   const load = () => {
     setLoading(true)
     setError(null)
-    fetch('/api/doctors/')
+    fetch(`${BASE}/api/doctors/`)
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(data => { setDoctors(data); setError(null) })
       .catch(err => setError(err.message))
