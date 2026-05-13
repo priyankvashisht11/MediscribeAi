@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -11,7 +12,7 @@ export function useDashboardStats(doctorId = null) {
   const fetch_ = useCallback(async () => {
     try {
       const params = doctorId ? `?doctor_id=${doctorId}` : ''
-      const res = await fetch(`${BASE}/api/sessions/stats/summary${params}`)
+      const res = await fetch(`${BASE}/api/sessions/stats/summary${params}`, { headers: authHeader() })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setStats(data)

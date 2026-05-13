@@ -6,6 +6,7 @@ import { formatRelativeTime } from '../utils/format'
 import { ArrowLeft, Printer, FileDown, CheckCircle, FileText } from 'lucide-react'
 import { apiFetch } from '../utils/apiFetch'
 import styles from './NoteReview.module.css'
+import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -115,12 +116,14 @@ export default function NoteReview() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
   const [auditLog, setAuditLog] = useState([])
+  const [prescLoading, setPrescLoading] = useState(false)
+  const [instrLoading, setInstrLoading] = useState(false)
 
   const noteId = note?.note_id
 
   useEffect(() => {
     if (!noteId) return
-    fetch(`${BASE}/api/notes/${noteId}/audit`)
+    fetch(`${BASE}/api/notes/${noteId}/audit`, { headers: authHeader() })
       .then(r => r.json())
       .then(setAuditLog)
       .catch(() => {})
@@ -196,6 +199,39 @@ export default function NoteReview() {
     }
   }
 
+  const _downloadPdf = async (endpoint, filename, setLoading, label) => {
+    if (!noteId) return
+    setLoading(true)
+    const slowTimer = setTimeout(() => {
+      addToast({ type: 'info', message: 'Generating document — please wait…' })
+    }, 8000)
+    try {
+      const res = await apiFetch(`/api/notes/${noteId}/${endpoint}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      addToast({ type: 'success', message: `${label} downloaded` })
+    } catch (e) {
+      addToast({ type: 'error', message: `${label} failed: ${e.message}` })
+    } finally {
+      clearTimeout(slowTimer)
+      setLoading(false)
+    }
+  }
+
+  const handleDownloadPrescription = () =>
+    _downloadPdf('prescription', `prescription_${noteId?.slice(0, 8)}.pdf`, setPrescLoading, 'Prescription')
+
+  const handleDownloadInstructions = () =>
+    _downloadPdf('instructions', `instructions_${noteId?.slice(0, 8)}.pdf`, setInstrLoading, 'Patient Instructions')
+
   const handleFinalize = async () => {
     if (!note?.note_id) return
     try {
@@ -235,7 +271,21 @@ export default function NoteReview() {
             onClick={handleDownloadPdf}
             disabled={!noteId || note?.status === 'generating'}
           >
-            <FileDown size={14} /> Export PDF
+            <FileDown size={14} /> SOAP PDF
+          </button>
+          <button
+            className={styles.iconBtn}
+            onClick={handleDownloadPrescription}
+            disabled={!noteId || note?.status === 'generating' || prescLoading}
+          >
+            <FileDown size={14} /> {prescLoading ? 'Generating…' : 'Prescription'}
+          </button>
+          <button
+            className={`${styles.iconBtn} ${styles.iconBtnOutline}`}
+            onClick={handleDownloadInstructions}
+            disabled={!noteId || note?.status === 'generating' || instrLoading}
+          >
+            <FileDown size={14} /> {instrLoading ? 'Generating…' : 'Patient Sheet'}
           </button>
         </div>
       </div>

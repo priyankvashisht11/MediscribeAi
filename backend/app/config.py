@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     # Example: ALLOWED_ORIGINS=https://mediscribe.vercel.app,https://mediscribe.yourdomain.com
     allowed_origins: str = "http://localhost:3000"
 
+    # ── Access PIN gate ────────────────────────────────────────────────────────
+    access_pin: str = ""
+    # Empty string = gate disabled (dev default). Set via:
+    #   flyctl secrets set ACCESS_PIN="your_pin" --app mediscribe-api
+
     max_concurrent_sessions: int = 5
     # POC hard limit: 5 simultaneous doctor sessions.
 

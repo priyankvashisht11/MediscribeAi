@@ -13,9 +13,10 @@ import logging
 import uuid
 
 import websockets
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
 from app.config import settings
+from app.routers.auth import verify_token
 from app.database import AsyncSessionLocal
 from app.models.transcript import Transcript
 from app.services.diarization import build_speaker_map, resolve_doctor_patient
@@ -45,7 +46,17 @@ DEEPGRAM_URL = (
 
 
 @router.websocket("/session/{session_id}")
-async def audio_stream(websocket: WebSocket, session_id: str):
+async def audio_stream(
+    websocket: WebSocket,
+    session_id: str,
+    token: str | None = Query(default=None),
+):
+    # PIN gate: verify token from ?token= query param (browsers cannot send
+    # custom headers on WebSocket upgrades, so Bearer auth is not possible here)
+    if settings.access_pin and not verify_token(token or ""):
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+
     if (
         len(_active_sessions) >= settings.max_concurrent_sessions
         and session_id not in _active_sessions

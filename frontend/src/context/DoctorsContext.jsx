@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -12,7 +13,7 @@ export function DoctorsProvider({ children }) {
   const load = () => {
     setLoading(true)
     setError(null)
-    fetch(`${BASE}/api/doctors/`)
+    fetch(`${BASE}/api/doctors/`, { headers: authHeader() })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(data => { setDoctors(data); setError(null) })
       .catch(err => setError(err.message))

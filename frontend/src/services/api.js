@@ -9,8 +9,21 @@ const api = axios.create({
 api.interceptors.request.use(config => {
   const doctorId = useUiStore.getState().activeDoctorId
   if (doctorId) config.headers['X-Doctor-Id'] = doctorId
+  const token = localStorage.getItem('mediscribe_token')
+  if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
 })
+
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('mediscribe_token')
+      window.dispatchEvent(new Event('mediscribe_auth_change'))
+    }
+    return Promise.reject(err)
+  }
+)
 
 export const doctorsApi = {
   list: () => api.get('/api/doctors/').then((r) => r.data),

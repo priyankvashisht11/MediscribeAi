@@ -2,6 +2,7 @@
 // Polls GET /api/notes/{sessionId} until status is 'ready', 'edited', 'finalized', or 'error'.
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -20,7 +21,7 @@ export function useNote(sessionId) {
     if (!sessionId || !isMountedRef.current) return
 
     try {
-      const res = await fetch(`${BASE}/api/notes/${sessionId}`)
+      const res = await fetch(`${BASE}/api/notes/${sessionId}`, { headers: authHeader() })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
 
@@ -53,7 +54,7 @@ export function useNote(sessionId) {
 
       if (data.status === 'not_started') {
         setStatus('generating')
-        await fetch(`${BASE}/api/notes/${sessionId}/generate`, { method: 'POST' })
+        await fetch(`${BASE}/api/notes/${sessionId}/generate`, { method: 'POST', headers: authHeader() })
         pollTimerRef.current = setTimeout(fetchNote, POLL_INTERVAL_MS)
         return
       }

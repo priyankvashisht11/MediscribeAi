@@ -3,15 +3,29 @@ import traceback
 from contextlib import asynccontextmanager
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
 
 from app.config import settings
 from app.database import AsyncSessionLocal, get_db, init_db
-from app.routers import doctors, notes, sessions, ws
+from app.routers import analytics, auth, doctors, notes, sessions, ws
+from app.routers.auth import verify_token
 from app.services import redis_client as redis_module
+
+_bearer = HTTPBearer(auto_error=False)
+
+
+async def require_auth(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+):
+    # Gate disabled when access_pin is empty
+    if not settings.access_pin:
+        return
+    if not credentials or not verify_token(credentials.credentials):
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 logger = logging.getLogger(__name__)
 
@@ -88,10 +102,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"])
-app.include_router(notes.router, prefix="/api/notes", tags=["Notes"])
-app.include_router(doctors.router, prefix="/api/doctors", tags=["Doctors"])
-app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"], dependencies=[Depends(require_auth)])
+app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"], dependencies=[Depends(require_auth)])
+app.include_router(notes.router, prefix="/api/notes", tags=["Notes"], dependencies=[Depends(require_auth)])
+app.include_router(doctors.router, prefix="/api/doctors", tags=["Doctors"], dependencies=[Depends(require_auth)])
+app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])  # WS auth via ?token= query param
 
 
 @app.exception_handler(Exception)

@@ -29,6 +29,13 @@
   transition: all var(--transition);
 }
 .iconBtn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.iconBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.iconBtnOutline { border-color: var(--color-primary); color: var(--color-primary); }
+
+@media (max-width: 480px) {
+  .headerActions { flex-direction: column; width: 100%; }
+  .iconBtn, .iconBtnOutline { width: 100%; justify-content: center; }
+}
 
 .layout {
   display: grid;

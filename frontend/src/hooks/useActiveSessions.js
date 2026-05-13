@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -9,7 +10,7 @@ export function useActiveSessions(pollMs = 10000) {
   useEffect(() => {
     const fetch_ = async () => {
       try {
-        const res = await fetch(`${BASE}/api/sessions/active`)
+        const res = await fetch(`${BASE}/api/sessions/active`, { headers: authHeader() })
         if (res.ok) setSessions(await res.json())
       } catch (_) {}
       finally { setLoading(false) }

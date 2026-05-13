@@ -358,3 +358,69 @@ async def export_note_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+async def _get_note_session_doctor(note_id: UUID, db: AsyncSession):
+    """Shared helper — fetch note, session, doctor, patient for PDF endpoints."""
+    note = await db.get(ClinicalNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    session = await db.get(SessionModel, note.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    doctor = await db.get(Doctor, session.doctor_id)
+    doctor_name = doctor.name if doctor else "Unknown Doctor"
+    patient_name, patient_age, patient_gender = "Unknown", None, None
+    if session.patient_id:
+        patient = await db.get(Patient, session.patient_id)
+        if patient:
+            patient_name = patient.name
+            patient_age = getattr(patient, "age", None)
+            patient_gender = getattr(patient, "gender", None)
+    note_dict = {c.name: getattr(note, c.name) for c in note.__table__.columns}
+    session_dict = {c.name: getattr(session, c.name) for c in session.__table__.columns}
+    return note_dict, session_dict, doctor_name, patient_name, patient_age, patient_gender
+
+
+@router.get("/{note_id}/prescription")
+async def export_prescription_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Generate and return a prescription PDF for the given note."""
+    from app.services.prescription_generator import generate_prescription_pdf
+    note_dict, session_dict, doctor_name, patient_name, patient_age, patient_gender = \
+        await _get_note_session_doctor(note_id, db)
+    try:
+        pdf_bytes = await generate_prescription_pdf(
+            note=note_dict, session=session_dict,
+            doctor_name=doctor_name, patient_name=patient_name,
+            patient_age=patient_age, patient_gender=patient_gender,
+        )
+    except Exception as e:
+        logger.error(f"Prescription PDF failed for note {note_id}: {e}")
+        raise HTTPException(status_code=500, detail="Prescription PDF generation failed")
+    filename = f"prescription_{str(note_id)[:8]}.pdf"
+    return Response(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/{note_id}/instructions")
+async def export_instructions_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Generate and return a patient instructions PDF for the given note."""
+    from app.services.instructions_generator import generate_instructions_pdf
+    note_dict, session_dict, doctor_name, patient_name, patient_age, _ = \
+        await _get_note_session_doctor(note_id, db)
+    try:
+        pdf_bytes = await generate_instructions_pdf(
+            note=note_dict, session=session_dict,
+            doctor_name=doctor_name, patient_name=patient_name,
+            patient_age=patient_age,
+        )
+    except Exception as e:
+        logger.error(f"Instructions PDF failed for note {note_id}: {e}")
+        raise HTTPException(status_code=500, detail="Instructions PDF generation failed")
+    filename = f"instructions_{str(note_id)[:8]}.pdf"
+    return Response(
+        content=pdf_bytes, media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -31,7 +31,12 @@ export function useSessionWs(sessionId) {
     const base = apiUrl
       ? apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws')
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
-    const ws = new WebSocket(`${base}/ws/session/${sessionId}`)
+    // Browsers cannot send custom headers on WebSocket upgrades — pass JWT as query param
+    const token = localStorage.getItem('mediscribe_token')
+    const wsUrl = token
+      ? `${base}/ws/session/${sessionId}?token=${encodeURIComponent(token)}`
+      : `${base}/ws/session/${sessionId}`
+    const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
     ws.onopen = () => {

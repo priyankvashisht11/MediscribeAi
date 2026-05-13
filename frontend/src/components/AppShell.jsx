@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Radio, ClipboardList, Users,
   Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
-  PlusCircle, Clock
+  PlusCircle, Clock, BarChart2
 } from 'lucide-react'
 import { useUiStore } from '../stores/uiStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { icon: Radio,           label: 'Active Sessions',  to: '/sessions/active' },
   { icon: ClipboardList,   label: 'Session History',  to: '/sessions/history' },
   { icon: Users,           label: 'Doctors',          to: '/doctors' },
+  { icon: BarChart2,       label: 'Analytics',        to: '/analytics' },
 ]
 
 const NAV_BOTTOM = [
