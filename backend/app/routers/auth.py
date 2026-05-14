@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import Doctor
+
+_bearer = HTTPBearer(auto_error=False)
 
 router = APIRouter()
 
@@ -141,12 +144,21 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me")
 async def get_me(
-    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: AsyncSession = Depends(get_db),
 ):
     """Bootstrap endpoint — frontend calls on load to hydrate doctor identity."""
-    doctor_id = getattr(request.state, "doctor_id", None)
-    if not doctor_id:
+    token_str = credentials.credentials if credentials else None
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    claims = decode_token(token_str)
+    if not claims or not claims.get("doctor_id"):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        doctor_id = UUID(claims["doctor_id"])
+    except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     doctor = await db.get(Doctor, doctor_id)
