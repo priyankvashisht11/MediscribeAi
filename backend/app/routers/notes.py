@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -46,6 +46,32 @@ def get_current_doctor_id(x_doctor_id: str | None = Header(default=None)) -> UUI
         return None
 
 
+def _get_clinic_id(request: Request):
+    return getattr(request.state, "clinic_id", None)
+
+
+async def _verify_session_clinic(session_id: UUID, clinic_id, db: AsyncSession) -> SessionModel:
+    """Fetch session and verify clinic ownership. Returns session or raises 404."""
+    session = await db.get(SessionModel, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if clinic_id and session.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+async def _verify_note_clinic(note_id: UUID, clinic_id, db: AsyncSession) -> ClinicalNote:
+    """Fetch note, verify it belongs to clinic via session. Returns note or raises 404."""
+    note = await db.get(ClinicalNote, note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    if clinic_id:
+        session = await db.get(SessionModel, note.session_id)
+        if not session or session.clinic_id != clinic_id:
+            raise HTTPException(status_code=404, detail="Note not found")
+    return note
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _add_audit(db: AsyncSession, note_id: UUID, doctor_id: UUID | None, change_type: str, snapshot: dict) -> None:
@@ -79,12 +105,13 @@ async def _cleanup_redis(session_id: str) -> None:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/{session_id}")
-async def get_note(session_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_note(session_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Get the clinical note for a session.
     Returns status='not_started' if no note exists yet.
     Frontend polls this until status != 'generating'.
     """
+    await _verify_session_clinic(session_id, _get_clinic_id(request), db)
     result = await db.execute(
         select(ClinicalNote).where(ClinicalNote.session_id == session_id)
     )
@@ -119,6 +146,7 @@ async def get_note(session_id: UUID, db: AsyncSession = Depends(get_db)):
 @router.post("/{session_id}/generate")
 async def trigger_note_generation(
     session_id: UUID,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     doctor_id: UUID | None = Depends(get_current_doctor_id),
@@ -128,6 +156,7 @@ async def trigger_note_generation(
     Returns immediately — frontend polls GET /{session_id} until status='ready'.
     Called when note status is 'not_started' (e.g. from useNote hook).
     """
+    await _verify_session_clinic(session_id, _get_clinic_id(request), db)
     result = await db.execute(
         select(ClinicalNote).where(ClinicalNote.session_id == session_id)
     )
@@ -249,14 +278,12 @@ async def _update_note_status(db: AsyncSession, note_id: UUID, status: str, erro
 async def update_note(
     note_id: UUID,
     body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     doctor_id: UUID | None = Depends(get_current_doctor_id),
 ):
     """Update SOAP note fields (doctor edits in NoteReview page)."""
-    result = await db.execute(select(ClinicalNote).where(ClinicalNote.id == note_id))
-    note = result.scalar_one_or_none()
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    note = await _verify_note_clinic(note_id, _get_clinic_id(request), db)
 
     editable_fields = ["subjective", "objective", "assessment", "plan", "chief_complaint"]
     for field in editable_fields:
@@ -278,14 +305,12 @@ async def update_note(
 @router.post("/{note_id}/finalize")
 async def finalize_note(
     note_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     doctor_id: UUID | None = Depends(get_current_doctor_id),
 ):
     """Mark note as finalized (signed off by doctor). Returns 400 if already finalized."""
-    result = await db.execute(select(ClinicalNote).where(ClinicalNote.id == note_id))
-    note = result.scalar_one_or_none()
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    note = await _verify_note_clinic(note_id, _get_clinic_id(request), db)
     if note.is_finalized:
         raise HTTPException(status_code=400, detail="Note already finalized")
     note.is_finalized = True
@@ -310,8 +335,9 @@ async def finalize_note(
 
 
 @router.get("/{note_id}/audit", response_model=list[AuditLogEntry])
-async def get_audit_log(note_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_audit_log(note_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """Return all audit entries for a note, newest first."""
+    await _verify_note_clinic(note_id, _get_clinic_id(request), db)
     result = await db.execute(
         select(NoteAuditLog)
         .where(NoteAuditLog.note_id == note_id)
@@ -321,13 +347,11 @@ async def get_audit_log(note_id: UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{note_id}/export/pdf")
-async def export_note_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
+async def export_note_pdf(note_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate and return an A4 PDF of the clinical note."""
     from app.services.pdf_generator import generate_note_pdf
 
-    note = await db.get(ClinicalNote, note_id)
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
+    note = await _verify_note_clinic(note_id, _get_clinic_id(request), db)
 
     session = await db.get(SessionModel, note.session_id)
     if not session:
@@ -393,9 +417,10 @@ async def _get_note_session_doctor(note_id: UUID, db: AsyncSession):
 
 
 @router.get("/{note_id}/prescription")
-async def export_prescription_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
+async def export_prescription_pdf(note_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate and return a prescription PDF for the given note."""
     from app.services.prescription_generator import generate_prescription_pdf
+    await _verify_note_clinic(note_id, _get_clinic_id(request), db)
     note_dict, session_dict, doctor_name, patient_name, patient_age, patient_gender = \
         await _get_note_session_doctor(note_id, db)
     try:
@@ -415,9 +440,10 @@ async def export_prescription_pdf(note_id: UUID, db: AsyncSession = Depends(get_
 
 
 @router.get("/{note_id}/instructions")
-async def export_instructions_pdf(note_id: UUID, db: AsyncSession = Depends(get_db)):
+async def export_instructions_pdf(note_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
     """Generate and return a patient instructions PDF for the given note."""
     from app.services.instructions_generator import generate_instructions_pdf
+    await _verify_note_clinic(note_id, _get_clinic_id(request), db)
     note_dict, session_dict, doctor_name, patient_name, patient_age, _ = \
         await _get_note_session_doctor(note_id, db)
     try:

@@ -1,6 +1,7 @@
 import logging
 import traceback
 from contextlib import asynccontextmanager
+from uuid import UUID
 
 import redis.asyncio as aioredis
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -11,28 +12,54 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import AsyncSessionLocal, get_db, init_db
-from app.routers import analytics, auth, doctors, notes, patients, sessions, ws
-from app.routers.auth import verify_token
+from app.routers import analytics, auth, clinics, doctors, notes, patients, sessions, ws
+from app.routers.auth import decode_token
 from app.services import redis_client as redis_module
 
 _bearer = HTTPBearer(auto_error=False)
 
-
-async def require_auth(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
-):
-    # Gate disabled when access_pin is empty
-    if not settings.access_pin:
-        return
-    if not credentials or not verify_token(credentials.credentials):
-        raise HTTPException(status_code=401, detail="Invalid or missing token")
-
 logger = logging.getLogger(__name__)
 
 
-async def _migrate_patient_columns() -> None:
-    """Add Sprint-9 columns to patients table if they don't exist yet."""
-    new_cols = [
+async def require_auth(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+):
+    """
+    Validates JWT and attaches identity claims to request.state.
+    Supports two modes:
+      - Legacy PIN mode: token has doctor_id=null — no scoping enforced
+      - Doctor mode: token has real doctor_id + clinic_id + role
+    """
+    token_str = credentials.credentials if credentials else None
+
+    # Gate disabled in dev (no access_pin and no secret_key)
+    if not settings.access_pin and not settings.secret_key:
+        request.state.doctor_id = None
+        request.state.clinic_id = None
+        request.state.role = None
+        return
+
+    if not token_str:
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+
+    claims = decode_token(token_str)
+    if claims is None:
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+
+    # Attach to request.state for use in route handlers
+    raw_doctor_id = claims.get("doctor_id")
+    raw_clinic_id = claims.get("clinic_id")
+    request.state.doctor_id = UUID(raw_doctor_id) if raw_doctor_id else None
+    request.state.clinic_id = UUID(raw_clinic_id) if raw_clinic_id else None
+    request.state.role = claims.get("role")
+
+
+# ── Startup migrations ─────────────────────────────────────────────────────────
+
+async def _migrate_sprint9_columns() -> None:
+    """Sprint 9 — patient table new columns."""
+    cols = [
         ("blood_group",         "VARCHAR(5)"),
         ("known_allergies",     "TEXT"),
         ("chronic_conditions",  "TEXT"),
@@ -41,56 +68,142 @@ async def _migrate_patient_columns() -> None:
         ("notes",               "TEXT"),
     ]
     async with AsyncSessionLocal() as db:
-        for col, col_type in new_cols:
+        for col, col_type in cols:
             try:
-                await db.execute(text(
-                    f"ALTER TABLE patients ADD COLUMN IF NOT EXISTS {col} {col_type}"
-                ))
+                await db.execute(text(f"ALTER TABLE patients ADD COLUMN IF NOT EXISTS {col} {col_type}"))
             except Exception as e:
-                logger.warning(f"[Migration] Could not add column {col}: {e}")
+                logger.warning(f"[Migration] patients.{col}: {e}")
         await db.commit()
-    print("[Startup] Patient column migration complete.", flush=True)
 
 
-async def _seed_mock_doctors() -> None:
-    """Upsert the 5 mock doctors so they always exist in DB for session/note lookups."""
-    from uuid import UUID
+async def _migrate_sprint10_schema() -> None:
+    """Sprint 10 — clinics table, clinic_invites table, auth columns on doctors/patients/sessions."""
+    async with AsyncSessionLocal() as db:
+        # clinics table
+        await db.execute(text("""
+            CREATE TABLE IF NOT EXISTS clinics (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                name VARCHAR(100) NOT NULL,
+                plan_type VARCHAR(20) NOT NULL DEFAULT 'solo',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """))
+        # clinic_invites table
+        await db.execute(text("""
+            CREATE TABLE IF NOT EXISTS clinic_invites (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                clinic_id UUID NOT NULL REFERENCES clinics(id),
+                invite_code VARCHAR(8) UNIQUE NOT NULL,
+                created_by UUID NOT NULL REFERENCES doctors(id),
+                email_hint VARCHAR(255),
+                used BOOLEAN NOT NULL DEFAULT false,
+                used_by UUID REFERENCES doctors(id),
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+        """))
+        # doctors — new auth columns
+        for col, col_type in [
+            ("clinic_id",        "UUID REFERENCES clinics(id)"),
+            ("hashed_password",  "VARCHAR(255)"),
+            ("role",             "VARCHAR(20) DEFAULT 'doctor'"),
+            ("is_active",        "BOOLEAN DEFAULT true"),
+        ]:
+            try:
+                await db.execute(text(f"ALTER TABLE doctors ADD COLUMN IF NOT EXISTS {col} {col_type}"))
+            except Exception as e:
+                logger.warning(f"[Migration] doctors.{col}: {e}")
+        # patients — clinic scoping
+        try:
+            await db.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS clinic_id UUID REFERENCES clinics(id)"))
+        except Exception as e:
+            logger.warning(f"[Migration] patients.clinic_id: {e}")
+        # sessions — clinic scoping
+        try:
+            await db.execute(text("ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clinic_id UUID REFERENCES clinics(id)"))
+        except Exception as e:
+            logger.warning(f"[Migration] sessions.clinic_id: {e}")
+        await db.commit()
+    print("[Startup] Sprint 10 schema migration complete.", flush=True)
+
+
+async def _seed_demo_clinic() -> None:
+    """
+    Upsert the demo clinic and 5 seeded doctors with email/password auth.
+    Idempotent — safe to run on every startup.
+    """
+    from passlib.context import CryptContext
     from sqlalchemy import select
     from app.models import Doctor
+    from app.models.clinic import Clinic
 
-    mock_doctors = [
-        {"id": UUID("00000000-0000-0000-0000-000000000001"), "name": "Dr. Ananya Sharma",  "specialty": "General Physician", "email": "ananya@mediscribe.dev"},
-        {"id": UUID("00000000-0000-0000-0000-000000000002"), "name": "Dr. Rajesh Kumar",   "specialty": "Pediatrics",        "email": "rajesh@mediscribe.dev"},
-        {"id": UUID("00000000-0000-0000-0000-000000000003"), "name": "Dr. Priya Singh",    "specialty": "Dermatology",       "email": "priya@mediscribe.dev"},
-        {"id": UUID("00000000-0000-0000-0000-000000000004"), "name": "Dr. Amit Verma",     "specialty": "Cardiology",        "email": "amit@mediscribe.dev"},
-        {"id": UUID("00000000-0000-0000-0000-000000000005"), "name": "Dr. Sunita Rao",     "specialty": "Gynecology",        "email": "sunita@mediscribe.dev"},
+    DEMO_CLINIC_ID = UUID("00000000-0000-0000-0000-000000000099")
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    seed_password = settings.seed_doctor_password
+    hashed = pwd_context.hash(seed_password)
+
+    demo_doctors = [
+        {"id": UUID("00000000-0000-0000-0000-000000000001"), "name": "Dr. Ananya Sharma", "specialty": "General Physician", "email": "ananya@demo.mediscribe.in", "role": "admin"},
+        {"id": UUID("00000000-0000-0000-0000-000000000002"), "name": "Dr. Rajesh Kumar",  "specialty": "Pediatrics",        "email": "rajesh@demo.mediscribe.in", "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000003"), "name": "Dr. Priya Singh",   "specialty": "Dermatology",       "email": "priya@demo.mediscribe.in",  "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000004"), "name": "Dr. Amit Verma",    "specialty": "Cardiology",        "email": "amit@demo.mediscribe.in",   "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000005"), "name": "Dr. Sunita Rao",    "specialty": "Gynecology",        "email": "sunita@demo.mediscribe.in", "role": "doctor"},
     ]
+
     async with AsyncSessionLocal() as db:
-        for d in mock_doctors:
-            existing = await db.execute(select(Doctor).where(Doctor.id == d["id"]))
-            if not existing.scalar_one_or_none():
-                db.add(Doctor(id=d["id"], name=d["name"], specialty=d["specialty"], email=d["email"]))
+        # Upsert demo clinic
+        clinic = await db.get(Clinic, DEMO_CLINIC_ID)
+        if not clinic:
+            db.add(Clinic(id=DEMO_CLINIC_ID, name="MediScribe Demo Clinic", plan_type="clinic"))
+            await db.flush()
+
+        for d in demo_doctors:
+            existing = (await db.execute(select(Doctor).where(Doctor.id == d["id"]))).scalar_one_or_none()
+            if existing:
+                # Update auth fields if not yet set
+                existing.clinic_id = DEMO_CLINIC_ID
+                existing.role = d["role"]
+                existing.is_active = True
+                if not existing.hashed_password:
+                    existing.hashed_password = hashed
+                # Update email to new demo domain if still on old domain
+                if existing.email and existing.email.endswith("@mediscribe.dev"):
+                    existing.email = d["email"]
+            else:
+                db.add(Doctor(
+                    id=d["id"], name=d["name"], specialty=d["specialty"],
+                    email=d["email"], clinic_id=DEMO_CLINIC_ID,
+                    hashed_password=hashed, role=d["role"], is_active=True,
+                ))
         await db.commit()
-    print("[Startup] Mock doctors seeded.", flush=True)
+    print("[Startup] Demo clinic and doctors seeded.", flush=True)
+
+
+async def _backfill_clinic_id() -> None:
+    """Assign all NULL clinic_ids on patients/sessions to the demo clinic (Sprint 9 backfill)."""
+    DEMO_CLINIC_ID = "00000000-0000-0000-0000-000000000099"
+    async with AsyncSessionLocal() as db:
+        await db.execute(text(
+            f"UPDATE patients SET clinic_id = '{DEMO_CLINIC_ID}' WHERE clinic_id IS NULL"
+        ))
+        await db.execute(text(
+            f"UPDATE sessions SET clinic_id = '{DEMO_CLINIC_ID}' WHERE clinic_id IS NULL"
+        ))
+        await db.commit()
+    print("[Startup] clinic_id backfill complete.", flush=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Init database tables
     await init_db()
+    await _migrate_sprint9_columns()
+    await _migrate_sprint10_schema()
+    await _seed_demo_clinic()
+    await _backfill_clinic_id()
 
-    # 1b. Migrate new patient columns (Sprint 9 — ALTER TABLE IF NOT EXISTS)
-    await _migrate_patient_columns()
-
-    # 2. Seed mock doctors
-    await _seed_mock_doctors()
-
-    # 3. Init Redis client singleton used by session_state.py
     client = aioredis.from_url(settings.redis_url, decode_responses=True)
     redis_module.set_client(client)
 
-    # Rebuild ICD-10 DB if missing or empty (happens when ./backend is volume-mounted
-    # and the host copy is empty, shadowing the one built during Docker image creation)
     import sqlite3 as _sqlite3, os as _os
     _icd_path = settings.icd_db_path
     _needs_build = not _os.path.exists(_icd_path) or _os.path.getsize(_icd_path) == 0
@@ -106,14 +219,13 @@ async def lifespan(app: FastAPI):
         print("[Startup] ICD-10 database rebuilt.", flush=True)
 
     yield
-
     await client.aclose()
 
 
 app = FastAPI(
     title="MediScribe API",
-    version="0.2.0",
-    description="Ambient AI Medical Scribe — POC",
+    version="0.3.0",
+    description="Ambient AI Medical Scribe",
     lifespan=lifespan,
 )
 
@@ -127,29 +239,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(auth.router,      prefix="/api/auth",      tags=["Auth"])
+app.include_router(clinics.router,   prefix="/api/clinics",   tags=["Clinics"],   dependencies=[Depends(require_auth)])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"], dependencies=[Depends(require_auth)])
-app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"], dependencies=[Depends(require_auth)])
-app.include_router(notes.router, prefix="/api/notes", tags=["Notes"], dependencies=[Depends(require_auth)])
-app.include_router(doctors.router, prefix="/api/doctors", tags=["Doctors"], dependencies=[Depends(require_auth)])
-app.include_router(patients.router, prefix="/api/patients", tags=["Patients"], dependencies=[Depends(require_auth)])
-app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])  # WS auth via ?token= query param
+app.include_router(sessions.router,  prefix="/api/sessions",  tags=["Sessions"],  dependencies=[Depends(require_auth)])
+app.include_router(notes.router,     prefix="/api/notes",     tags=["Notes"],     dependencies=[Depends(require_auth)])
+app.include_router(doctors.router,   prefix="/api/doctors",   tags=["Doctors"],   dependencies=[Depends(require_auth)])
+app.include_router(patients.router,  prefix="/api/patients",  tags=["Patients"],  dependencies=[Depends(require_auth)])
+app.include_router(ws.router,        prefix="/ws",            tags=["WebSocket"])
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     logger.error(f"Unhandled exception on {request.method} {request.url}: {exc}")
     logger.error(traceback.format_exc())
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An internal error occurred. Please try again."},
-    )
+    return JSONResponse(status_code=500, content={"detail": "An internal error occurred. Please try again."})
 
 
 @app.get("/health")
 async def health_check():
-    from sqlalchemy.ext.asyncio import AsyncSession
-    from app.database import AsyncSessionLocal
     result = {"status": "ok", "db": "error", "redis": "error", "deepgram": "configured" if settings.deepgram_api_key else "not_configured"}
     try:
         async with AsyncSessionLocal() as db:

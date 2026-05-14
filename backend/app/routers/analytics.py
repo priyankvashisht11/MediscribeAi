@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,12 +11,20 @@ from app.models import ClinicalNote, Session as SessionModel
 router = APIRouter()
 
 
+def _get_clinic_id(request: Request):
+    return getattr(request.state, "clinic_id", None)
+
+
 @router.get("/overview")
 async def analytics_overview(
+    request: Request,
     doctor_id: UUID | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     base = select(SessionModel)
+    if clinic_id:
+        base = base.where(SessionModel.clinic_id == clinic_id)
     if doctor_id:
         base = base.where(SessionModel.doctor_id == doctor_id)
 
@@ -55,21 +63,25 @@ async def analytics_overview(
     avg_duration = round(float(duration_result), 1) if duration_result else 0.0
 
     # Notes finalized this week
+    note_where = [
+        ClinicalNote.is_finalized.is_(True),
+        SessionModel.created_at >= week_start,
+    ]
+    if clinic_id:
+        note_where.append(SessionModel.clinic_id == clinic_id)
+    if doctor_id:
+        note_where.append(SessionModel.doctor_id == doctor_id)
     note_subq = (
         select(ClinicalNote.session_id)
         .join(SessionModel, ClinicalNote.session_id == SessionModel.id)
-        .where(
-            ClinicalNote.is_finalized.is_(True),
-            SessionModel.created_at >= week_start,
-            *([] if not doctor_id else [SessionModel.doctor_id == doctor_id]),
-        )
+        .where(*note_where)
         .subquery()
     )
     notes_finalized_this_week = await db.scalar(
         select(func.count()).select_from(note_subq)
     )
 
-    # Total distinct patients (by patient_name until patient model wired)
+    # Total distinct patients seen
     total_patients = await db.scalar(
         select(func.count(func.distinct(SessionModel.patient_name))).select_from(
             completed.subquery()
@@ -91,13 +103,17 @@ async def analytics_overview(
     busiest_hour = int(busiest.hr) if busiest else None
 
     # Finalized notes percentage
+    total_notes_where = []
+    if clinic_id:
+        total_notes_where.append(SessionModel.clinic_id == clinic_id)
+    if doctor_id:
+        total_notes_where.append(SessionModel.doctor_id == doctor_id)
+
     total_notes = await db.scalar(
         select(func.count()).select_from(
             select(ClinicalNote)
             .join(SessionModel, ClinicalNote.session_id == SessionModel.id)
-            .where(
-                *([] if not doctor_id else [SessionModel.doctor_id == doctor_id])
-            )
+            .where(*total_notes_where)
             .subquery()
         )
     )
@@ -105,10 +121,7 @@ async def analytics_overview(
         select(func.count()).select_from(
             select(ClinicalNote)
             .join(SessionModel, ClinicalNote.session_id == SessionModel.id)
-            .where(
-                ClinicalNote.is_finalized.is_(True),
-                *([] if not doctor_id else [SessionModel.doctor_id == doctor_id]),
-            )
+            .where(ClinicalNote.is_finalized.is_(True), *total_notes_where)
             .subquery()
         )
     )
@@ -128,10 +141,12 @@ async def analytics_overview(
 
 @router.get("/icd-breakdown")
 async def icd_breakdown(
+    request: Request,
     doctor_id: UUID | None = Query(default=None),
     limit: int = Query(default=10, le=20),
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     # jsonb_array_elements requires raw SQL — ORM cannot express it cleanly
     sql = text("""
         SELECT
@@ -142,23 +157,30 @@ async def icd_breakdown(
         JOIN sessions s ON s.id = cn.session_id,
              jsonb_array_elements(cn.icd_codes) AS elem
         WHERE (:doctor_id IS NULL OR s.doctor_id = CAST(:doctor_id AS uuid))
+          AND (:clinic_id IS NULL OR s.clinic_id = CAST(:clinic_id AS uuid))
           AND cn.icd_codes IS NOT NULL
           AND jsonb_array_length(cn.icd_codes) > 0
         GROUP BY code, description
         ORDER BY count DESC
         LIMIT :limit
     """)
-    result = await db.execute(sql, {"doctor_id": str(doctor_id) if doctor_id else None, "limit": limit})
+    result = await db.execute(sql, {
+        "doctor_id": str(doctor_id) if doctor_id else None,
+        "clinic_id": str(clinic_id) if clinic_id else None,
+        "limit": limit,
+    })
     rows = result.fetchall()
     return [{"code": r.code, "description": r.description, "count": r.count} for r in rows]
 
 
 @router.get("/sessions-by-day")
 async def sessions_by_day(
+    request: Request,
     doctor_id: UUID | None = Query(default=None),
     days: int = Query(default=30, le=90),
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     today = date.today()
     date_range = [today - timedelta(days=i) for i in range(days - 1, -1, -1)]
 
@@ -168,11 +190,13 @@ async def sessions_by_day(
         WHERE status = 'completed'
           AND created_at >= :start
           AND (:doctor_id IS NULL OR doctor_id = CAST(:doctor_id AS uuid))
+          AND (:clinic_id IS NULL OR clinic_id = CAST(:clinic_id AS uuid))
         GROUP BY day
     """)
     result = await db.execute(sql, {
         "start": date_range[0],
         "doctor_id": str(doctor_id) if doctor_id else None,
+        "clinic_id": str(clinic_id) if clinic_id else None,
     })
     counts = {str(r.day): r.cnt for r in result.fetchall()}
 

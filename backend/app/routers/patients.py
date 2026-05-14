@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +18,10 @@ from app.models.patient import Patient
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _get_clinic_id(request: Request):
+    return getattr(request.state, "clinic_id", None)
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
@@ -58,12 +62,16 @@ def _patient_dict(p: Patient, visit_count: int = 0) -> dict:
 
 @router.get("/")
 async def list_patients(
+    request: Request,
     search: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     query = select(Patient).order_by(Patient.name.asc())
+    if clinic_id:
+        query = query.where(Patient.clinic_id == clinic_id)
     if search:
         query = query.where(Patient.name.ilike(f"%{search}%"))
 
@@ -97,9 +105,12 @@ async def list_patients(
 
 
 @router.get("/{patient_id}")
-async def get_patient(patient_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_patient(patient_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
+    clinic_id = _get_clinic_id(request)
     patient = await db.get(Patient, patient_id)
     if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     visit_count = (await db.execute(
@@ -113,10 +124,14 @@ async def get_patient(patient_id: UUID, db: AsyncSession = Depends(get_db)):
 async def update_patient(
     patient_id: UUID,
     body: PatientUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     patient = await db.get(Patient, patient_id)
     if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     update_data = body.model_dump(exclude_none=True)
@@ -141,17 +156,23 @@ async def update_patient(
 
 
 @router.get("/{patient_id}/sessions")
-async def get_patient_sessions(patient_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_patient_sessions(
+    patient_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """Return all sessions for a patient with their finalized notes."""
+    clinic_id = _get_clinic_id(request)
     patient = await db.get(Patient, patient_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Patient not found")
 
-    result = await db.execute(
-        select(Session)
-        .where(Session.patient_id == patient_id)
-        .order_by(Session.created_at.desc())
-    )
+    sessions_q = select(Session).where(Session.patient_id == patient_id)
+    if clinic_id:
+        sessions_q = sessions_q.where(Session.clinic_id == clinic_id)
+    result = await db.execute(sessions_q.order_by(Session.created_at.desc()))
     sessions = result.scalars().all()
 
     items = []
@@ -187,13 +208,20 @@ async def get_patient_sessions(patient_id: UUID, db: AsyncSession = Depends(get_
 
 
 @router.get("/{patient_id}/analysis")
-async def get_patient_analysis(patient_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_patient_analysis(
+    patient_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """
     Generate longitudinal health analysis for a patient using all finalized notes.
     Results are cached in Redis for 1 hour.
     """
+    clinic_id = _get_clinic_id(request)
     patient = await db.get(Patient, patient_id)
     if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     cache_key = f"patient_analysis:{patient_id}"
@@ -209,15 +237,17 @@ async def get_patient_analysis(patient_id: UUID, db: AsyncSession = Depends(get_
         pass
 
     # Fetch all finalized notes for this patient
-    result = await db.execute(
+    notes_q = (
         select(ClinicalNote, Session)
         .join(Session, ClinicalNote.session_id == Session.id)
         .where(
             Session.patient_id == patient_id,
             ClinicalNote.is_finalized == True,
         )
-        .order_by(Session.created_at.asc())
     )
+    if clinic_id:
+        notes_q = notes_q.where(Session.clinic_id == clinic_id)
+    result = await db.execute(notes_q.order_by(Session.created_at.asc()))
     rows = result.all()
 
     if not rows:

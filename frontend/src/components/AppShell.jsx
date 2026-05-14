@@ -3,9 +3,10 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Radio, ClipboardList, Users, UserSquare,
   Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
-  PlusCircle, Clock, BarChart2
+  PlusCircle, Clock, BarChart2, Building2, LogOut
 } from 'lucide-react'
 import { useUiStore } from '../stores/uiStore'
+import { useDoctorStore } from '../stores/doctorStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import Logo from './Logo'
 import ToastContainer from './Toast'
@@ -33,10 +34,18 @@ const BOTTOM_TABS = [
   { icon: Settings,        label: 'Settings',  to: '/settings' },
 ]
 
+function logout() {
+  localStorage.removeItem('mediscribe_token')
+  useDoctorStore.getState().clearDoctor()
+  window.dispatchEvent(new Event('mediscribe_auth_change'))
+}
+
 export default function AppShell() {
   const { sidebarOpen, toggleSidebar, theme, setTheme } = useUiStore()
+  const doctor = useDoctorStore(s => s.doctor)
   const navigate = useNavigate()
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const isAdmin = doctor?.role === 'admin'
 
   useKeyboardShortcuts()
 
@@ -86,6 +95,19 @@ export default function AppShell() {
           <div className={styles.navDivider} />
 
           <ul className={styles.navList}>
+            {isAdmin && (
+              <li>
+                <NavLink
+                  to="/clinic"
+                  className={({ isActive }) =>
+                    `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                  }
+                >
+                  <Building2 size={16} />
+                  <span>Clinic Admin</span>
+                </NavLink>
+              </li>
+            )}
             {NAV_BOTTOM.map(({ icon: Icon, label, to }) => (
               <li key={to}>
                 <NavLink
@@ -99,6 +121,16 @@ export default function AppShell() {
                 </NavLink>
               </li>
             ))}
+            <li>
+              <button
+                className={styles.navItem}
+                style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+                onClick={logout}
+              >
+                <LogOut size={16} />
+                <span>Sign out</span>
+              </button>
+            </li>
           </ul>
         </nav>
       </aside>

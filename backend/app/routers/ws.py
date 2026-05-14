@@ -16,7 +16,7 @@ import websockets
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
 from app.config import settings
-from app.routers.auth import verify_token
+from app.routers.auth import decode_token, verify_token
 from app.database import AsyncSessionLocal
 from app.models.transcript import Transcript
 from app.services.diarization import build_speaker_map, resolve_doctor_patient
@@ -51,11 +51,35 @@ async def audio_stream(
     session_id: str,
     token: str | None = Query(default=None),
 ):
-    # PIN gate: verify token from ?token= query param (browsers cannot send
-    # custom headers on WebSocket upgrades, so Bearer auth is not possible here)
-    if settings.access_pin and not verify_token(token or ""):
-        await websocket.close(code=4001, reason="Unauthorized")
+    # Auth gate: verify token from ?token= query param
+    # (browsers cannot send custom headers on WebSocket upgrades)
+    token_clinic_id = None
+    if settings.secret_key:
+        claims = decode_token(token or "")
+        if claims is None:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+        token_clinic_id = claims.get("clinic_id")
+    elif settings.access_pin:
+        if not verify_token(token or ""):
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+
+    # Verify session exists and belongs to the caller's clinic
+    try:
+        _session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        await websocket.close(code=4004, reason="Session not found")
         return
+    async with AsyncSessionLocal() as _db:
+        from app.models import Session as SessionModel
+        _session_obj = await _db.get(SessionModel, _session_uuid)
+        if not _session_obj:
+            await websocket.close(code=4004, reason="Session not found")
+            return
+        if token_clinic_id and str(_session_obj.clinic_id) != token_clinic_id:
+            await websocket.close(code=4003, reason="Forbidden")
+            return
 
     if (
         len(_active_sessions) >= settings.max_concurrent_sessions

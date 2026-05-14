@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,21 +79,32 @@ def _build_response(s: Session, p: Patient | None) -> SessionResponse:
     )
 
 
+def _get_clinic_id(request: Request) -> UUID | None:
+    return getattr(request.state, "clinic_id", None)
+
+
 # ── Endpoints (specific paths BEFORE /{session_id} — FastAPI matches in order) ─
 
 @router.get("/stats/summary")
 async def get_session_stats(
+    request: Request,
     doctor_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
+
     # Total sessions
     total_q = select(func.count()).select_from(Session)
+    if clinic_id:
+        total_q = total_q.where(Session.clinic_id == clinic_id)
     if doctor_id:
         total_q = total_q.where(Session.doctor_id == doctor_id)
     total = (await db.execute(total_q)).scalar_one()
 
     # By status
     status_q = select(Session.status, func.count().label("cnt")).group_by(Session.status)
+    if clinic_id:
+        status_q = status_q.where(Session.clinic_id == clinic_id)
     if doctor_id:
         status_q = status_q.where(Session.doctor_id == doctor_id)
     status_counts = {row.status: row.cnt for row in (await db.execute(status_q))}
@@ -104,11 +115,13 @@ async def get_session_stats(
         (utc_now + timedelta(hours=5, minutes=30)).date(), datetime.min.time()
     ).replace(tzinfo=timezone.utc) - timedelta(hours=5, minutes=30)
     today_q = select(func.count()).select_from(Session).where(Session.created_at >= ist_today_start)
+    if clinic_id:
+        today_q = today_q.where(Session.clinic_id == clinic_id)
     if doctor_id:
         today_q = today_q.where(Session.doctor_id == doctor_id)
     today_count = (await db.execute(today_q)).scalar_one()
 
-    # Avg duration (completed only) — computed from started_at / ended_at
+    # Avg duration (completed only)
     avg_q = select(
         func.avg(func.extract("epoch", Session.ended_at - Session.started_at))
     ).where(
@@ -116,13 +129,22 @@ async def get_session_stats(
         Session.started_at.isnot(None),
         Session.ended_at.isnot(None),
     )
+    if clinic_id:
+        avg_q = avg_q.where(Session.clinic_id == clinic_id)
     if doctor_id:
         avg_q = avg_q.where(Session.doctor_id == doctor_id)
     avg_duration = (await db.execute(avg_q)).scalar_one()
 
-    # Finalized notes
+    # Finalized notes scoped to clinic
     from app.models import ClinicalNote
     fin_q = select(func.count()).select_from(ClinicalNote).where(ClinicalNote.is_finalized == True)
+    if clinic_id:
+        fin_q = (
+            select(func.count())
+            .select_from(ClinicalNote)
+            .join(Session, ClinicalNote.session_id == Session.id)
+            .where(ClinicalNote.is_finalized == True, Session.clinic_id == clinic_id)
+        )
     finalized_notes = (await db.execute(fin_q)).scalar_one()
 
     return {
@@ -137,18 +159,23 @@ async def get_session_stats(
 
 
 @router.get("/active", response_model=list[SessionResponse])
-async def get_active_sessions(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+async def get_active_sessions(request: Request, db: AsyncSession = Depends(get_db)):
+    clinic_id = _get_clinic_id(request)
+    query = (
         select(Session, Patient)
         .join(Patient, Session.patient_id == Patient.id, isouter=True)
         .where(Session.status.in_(["recording", "idle"]))
         .order_by(Session.created_at.desc())
     )
+    if clinic_id:
+        query = query.where(Session.clinic_id == clinic_id)
+    result = await db.execute(query)
     return [_build_response(s, p) for s, p in result.all()]
 
 
 @router.get("/", response_model=SessionListResponse)
 async def list_sessions(
+    request: Request,
     doctor_id: UUID | None = None,
     status: str | None = None,
     search: str | None = None,
@@ -158,16 +185,18 @@ async def list_sessions(
     page_size: int = 20,
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
     query = (
         select(Session, Patient)
         .join(Patient, Session.patient_id == Patient.id, isouter=True)
         .order_by(Session.created_at.desc())
     )
-    if doctor_id:  query = query.where(Session.doctor_id == doctor_id)
-    if status:     query = query.where(Session.status == status)
-    if search:     query = query.where(Patient.name.ilike(f"%{search}%"))
-    if date_from:  query = query.where(Session.created_at >= date_from)
-    if date_to:    query = query.where(Session.created_at <= date_to)
+    if clinic_id:   query = query.where(Session.clinic_id == clinic_id)
+    if doctor_id:   query = query.where(Session.doctor_id == doctor_id)
+    if status:      query = query.where(Session.status == status)
+    if search:      query = query.where(Patient.name.ilike(f"%{search}%"))
+    if date_from:   query = query.where(Session.created_at >= date_from)
+    if date_to:     query = query.where(Session.created_at <= date_to)
 
     total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one()
     rows = (await db.execute(query.offset((page - 1) * page_size).limit(page_size))).all()
@@ -182,7 +211,8 @@ async def list_sessions(
 
 
 @router.get("/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_session(session_id: UUID, request: Request, db: AsyncSession = Depends(get_db)):
+    clinic_id = _get_clinic_id(request)
     result = await db.execute(
         select(Session, Patient)
         .join(Patient, Session.patient_id == Patient.id, isouter=True)
@@ -191,69 +221,63 @@ async def get_session(session_id: UUID, db: AsyncSession = Depends(get_db)):
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
-    return _build_response(*row)
+    session, patient = row
+    if clinic_id and session.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return _build_response(session, patient)
 
 
 @router.post("/", response_model=SessionResponse)
-async def create_session(body: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
+async def create_session(
+    body: CreateSessionRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(request)
     name = body.patient_name or "Anonymous Patient"
     age = body.patient_age
 
-    # ── Patient dedup: name (case-insensitive) + age ───────────────────────────
-    # age < 12 → exact age match (a 6yo and 7yo "Arjun" are different patients)
-    # age >= 12 → ±1 year tolerance for birthday drift
+    # ── Patient dedup: name (case-insensitive) + age + clinic ─────────────────
+    # age < 12 → exact age match; age >= 12 → ±1 year tolerance for birthday drift
     patient = None
     if age is not None:
+        base_where = [func.lower(Patient.name) == name.lower()]
+        if clinic_id:
+            base_where.append(Patient.clinic_id == clinic_id)
         if age < 12:
-            result = await db.execute(
-                select(Patient).where(
-                    func.lower(Patient.name) == name.lower(),
-                    Patient.age == age,
-                )
-            )
+            result = await db.execute(select(Patient).where(*base_where, Patient.age == age))
         else:
             result = await db.execute(
-                select(Patient).where(
-                    func.lower(Patient.name) == name.lower(),
-                    Patient.age >= age - 1,
-                    Patient.age <= age + 1,
-                )
+                select(Patient).where(*base_where, Patient.age >= age - 1, Patient.age <= age + 1)
             )
         patient = result.scalar_one_or_none()
 
     if patient is None:
-        patient = Patient(id=uuid.uuid4(), name=name, age=age)
+        patient = Patient(id=uuid.uuid4(), name=name, age=age, clinic_id=clinic_id)
         db.add(patient)
         try:
             await db.flush()
         except Exception:
             await db.rollback()
-            # Race condition — another request created the same patient; re-fetch
+            # Race condition — re-fetch
+            base_where = [func.lower(Patient.name) == name.lower()]
+            if clinic_id:
+                base_where.append(Patient.clinic_id == clinic_id)
             if age is not None and age < 12:
-                result = await db.execute(
-                    select(Patient).where(
-                        func.lower(Patient.name) == name.lower(),
-                        Patient.age == age,
-                    )
-                )
+                result = await db.execute(select(Patient).where(*base_where, Patient.age == age))
             elif age is not None:
                 result = await db.execute(
-                    select(Patient).where(
-                        func.lower(Patient.name) == name.lower(),
-                        Patient.age >= age - 1,
-                        Patient.age <= age + 1,
-                    )
+                    select(Patient).where(*base_where, Patient.age >= age - 1, Patient.age <= age + 1)
                 )
             else:
-                result = await db.execute(
-                    select(Patient).where(func.lower(Patient.name) == name.lower())
-                )
+                result = await db.execute(select(Patient).where(*base_where))
             patient = result.scalar_one()
 
     session = Session(
         id=uuid.uuid4(),
         doctor_id=body.doctor_id,
         patient_id=patient.id,
+        clinic_id=clinic_id,
         status="recording",
         started_at=datetime.now(timezone.utc),
     )
@@ -267,6 +291,7 @@ async def create_session(body: CreateSessionRequest, db: AsyncSession = Depends(
 @router.patch("/{session_id}/end")
 async def end_session(
     session_id: UUID,
+    request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
@@ -275,6 +300,7 @@ async def end_session(
     Reads transcript from Redis NOW (while WebSocket is still open) to avoid
     the race condition where ws.py clears Redis after WebSocket disconnect.
     """
+    clinic_id = _get_clinic_id(request)
     result = await db.execute(
         select(Session, Patient)
         .join(Patient, Session.patient_id == Patient.id, isouter=True)
@@ -284,6 +310,8 @@ async def end_session(
     if not row:
         raise HTTPException(status_code=404, detail="Session not found")
     session, patient = row
+    if clinic_id and session.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Session not found")
 
     session.status = "completed"
     session.ended_at = datetime.now(timezone.utc)
@@ -310,7 +338,6 @@ async def end_session(
     patient_name = patient.name if patient else "Patient"
     session_date = session.created_at.strftime("%d %B %Y") if session.created_at else datetime.now().strftime("%d %B %Y")
 
-    # Create note placeholder and trigger background generation
     from app.models import ClinicalNote
     from app.routers.notes import _run_generation_task
 
@@ -346,10 +373,17 @@ async def end_session(
 
 
 @router.get("/{session_id}/transcript", response_model=list[TranscriptChunk])
-async def get_session_transcript(session_id: UUID, db: AsyncSession = Depends(get_db)):
+async def get_session_transcript(
+    session_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
     """Returns all transcript chunks for a session, ordered by start_time_ms."""
+    clinic_id = _get_clinic_id(request)
     session = await db.get(Session, session_id)
     if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if clinic_id and session.clinic_id != clinic_id:
         raise HTTPException(status_code=404, detail="Session not found")
     result = await db.execute(
         select(Transcript)
@@ -362,11 +396,15 @@ async def get_session_transcript(session_id: UUID, db: AsyncSession = Depends(ge
 @router.patch("/{session_id}/flip-all-speakers")
 async def flip_all_speakers(
     session_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Swap all doctor↔patient speaker labels for the entire session transcript."""
+    clinic_id = _get_clinic_id(request)
     session = await db.get(Session, session_id)
     if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if clinic_id and session.clinic_id != clinic_id:
         raise HTTPException(status_code=404, detail="Session not found")
 
     result = await db.execute(
@@ -391,11 +429,18 @@ async def correct_speaker(
     session_id: UUID,
     chunk_id: UUID,
     body: SpeakerCorrectionRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ):
     """Correct speaker attribution on a single transcript chunk."""
     if body.speaker not in ("doctor", "patient", "unknown"):
         raise HTTPException(status_code=400, detail="speaker must be doctor, patient, or unknown")
+    clinic_id = _get_clinic_id(request)
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if clinic_id and session.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Session not found")
     chunk = await db.get(Transcript, chunk_id)
     if not chunk or chunk.session_id != session_id:
         raise HTTPException(status_code=404, detail="Chunk not found")

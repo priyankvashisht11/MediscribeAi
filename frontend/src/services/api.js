@@ -51,4 +51,14 @@ export const patientsApi = {
   flipAll: (sessionId) => api.patch(`/api/sessions/${sessionId}/flip-all-speakers`).then((r) => r.data),
 }
 
+export const authApi = {
+  login: (email, password) =>
+    api.post('/api/auth/login', { email, password }).then((r) => r.data),
+  me: () => api.get('/api/auth/me').then((r) => r.data),
+  register: (body) => api.post('/api/auth/register', body).then((r) => r.data),
+  setupPassword: (setupToken, newPassword) =>
+    api.post('/api/auth/setup-password', { setup_token: setupToken, new_password: newPassword }).then((r) => r.data),
+  createClinic: (body) => api.post('/api/clinics/', body).then((r) => r.data),
+}
+
 export default api

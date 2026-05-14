@@ -1,34 +1,30 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { sessionsApi } from '../services/api'
-import { useDoctors } from '../context/DoctorsContext'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
+import { useDoctorStore } from '../stores/doctorStore'
 import { Lock, Mic } from 'lucide-react'
 import PatientSearchInput from '../components/PatientSearchInput'
 import styles from './NewSession.module.css'
 
-const STEPS = ['Doctor', 'Patient & Consent', 'Start']
+const STEPS = ['Patient & Consent', 'Start']
 
 export default function NewSession() {
   const navigate = useNavigate()
   const setCurrentSession = useSessionStore((s) => s.setCurrentSession)
   const addToast = useUiStore((s) => s.addToast)
-
-  const { doctors } = useDoctors()
+  const doctor = useDoctorStore((s) => s.doctor)
 
   const [step, setStep] = useState(0)
-  const [doctorId, setDoctorId] = useState('')
   const [patientName, setPatientName] = useState('')
   const [patientAge, setPatientAge] = useState('')
   const [patientGender, setPatientGender] = useState('')
   const [patientPhone, setPatientPhone] = useState('')
-  const [selectedPatient, setSelectedPatient] = useState(null) // existing patient picked from search
+  const [selectedPatient, setSelectedPatient] = useState(null)
   const [consented, setConsented] = useState(false)
   const [consentTimestamp, setConsentTimestamp] = useState(null)
   const [loading, setLoading] = useState(false)
-
-  const selectedDoctor = doctors.find((d) => d.id === doctorId)
 
   const handleConsentChange = (e) => {
     setConsented(e.target.checked)
@@ -40,7 +36,7 @@ export default function NewSession() {
     setLoading(true)
     try {
       const session = await sessionsApi.create({
-        doctor_id: doctorId,
+        doctor_id: doctor?.id,
         patient_name: patientName || null,
         patient_age: patientAge ? parseInt(patientAge) : null,
       })
@@ -57,6 +53,12 @@ export default function NewSession() {
     <div className={styles.page}>
       <h1 className={styles.title}>New Session</h1>
 
+      {doctor && (
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', marginBottom: 'var(--space-4)' }}>
+          Recording as <strong>{doctor.name}</strong> · {doctor.specialty}
+        </p>
+      )}
+
       {/* Step indicator */}
       <div className={styles.stepper} aria-label="Progress">
         {STEPS.map((label, i) => (
@@ -71,39 +73,8 @@ export default function NewSession() {
       </div>
 
       <div className={styles.card}>
-        {/* Step 0 — Select Doctor */}
+        {/* Step 0 — Patient + Consent */}
         {step === 0 && (
-          <div className={styles.stepContent}>
-            <h2 className={styles.stepTitle}>Select Doctor</h2>
-            <p className={styles.stepDesc}>Choose the doctor conducting this consultation.</p>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="doctor-select">Doctor</label>
-              <select
-                id="doctor-select"
-                className={styles.select}
-                value={doctorId}
-                onChange={(e) => setDoctorId(e.target.value)}
-              >
-                <option value="">— Select a doctor —</option>
-                {doctors.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name} · {d.specialty}</option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.actions}>
-              <button
-                className={styles.btnPrimary}
-                disabled={!doctorId}
-                onClick={() => setStep(1)}
-              >
-                Continue →
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 1 — Patient + Consent */}
-        {step === 1 && (
           <div className={styles.stepContent}>
             <h2 className={styles.stepTitle}>Patient Details & Consent</h2>
 
@@ -134,8 +105,7 @@ export default function NewSession() {
                   placeholder="Full name (type 3+ chars to search)"
                 />
                 {selectedPatient && (
-                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)',
-                               marginTop: 4 }}>
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)', marginTop: 4 }}>
                     ✓ Returning patient — record found ({selectedPatient.visit_count} previous visit{selectedPatient.visit_count !== 1 ? 's' : ''})
                   </p>
                 )}
@@ -218,11 +188,10 @@ export default function NewSession() {
             </div>
 
             <div className={styles.actions}>
-              <button className={styles.btnSecondary} onClick={() => setStep(0)}>← Back</button>
               <button
                 className={styles.btnPrimary}
                 disabled={!patientName.trim() || !consented}
-                onClick={() => setStep(2)}
+                onClick={() => setStep(1)}
               >
                 I Consent — Continue →
               </button>
@@ -230,15 +199,15 @@ export default function NewSession() {
           </div>
         )}
 
-        {/* Step 2 — Summary + Start */}
-        {step === 2 && (
+        {/* Step 1 — Summary + Start */}
+        {step === 1 && (
           <div className={styles.stepContent}>
             <h2 className={styles.stepTitle}>Ready to Start</h2>
 
             <div className={styles.summary}>
               <div className={styles.summaryRow}>
                 <span className={styles.summaryKey}>Doctor</span>
-                <span className={styles.summaryVal}>{selectedDoctor?.name}</span>
+                <span className={styles.summaryVal}>{doctor?.name}</span>
               </div>
               <div className={styles.summaryRow}>
                 <span className={styles.summaryKey}>Patient</span>
@@ -257,11 +226,11 @@ export default function NewSession() {
             </p>
 
             <div className={styles.actions}>
-              <button className={styles.btnSecondary} onClick={() => setStep(1)}>← Back</button>
+              <button className={styles.btnSecondary} onClick={() => setStep(0)}>← Back</button>
               <button
                 className={styles.btnStart}
                 onClick={handleStart}
-                disabled={loading}
+                disabled={loading || !doctor?.id}
               >
                 <Mic size={16} />
                 {loading ? 'Starting…' : 'Start Recording'}

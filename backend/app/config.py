@@ -11,8 +11,12 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
 
     # App
-    secret_key: str = "change_me_in_production"
+    secret_key: str = ""  # REQUIRED in production — set via: flyctl secrets set SECRET_KEY=$(openssl rand -hex 32)
     environment: str = "development"
+
+    # Sprint 10 auth
+    seed_doctor_password: str = "demo1234"   # override via SEED_DOCTOR_PASSWORD env var
+    frontend_url: str = "https://mediscribe-ai-eight.vercel.app"
 
     # ── LLM / Note Generation ──────────────────────────────────────────────────
     # Perplexity (primary) — uses OpenAI-compatible API

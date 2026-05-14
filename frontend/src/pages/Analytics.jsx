@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { useUiStore } from '../stores/uiStore'
+import { useDoctorStore } from '../stores/doctorStore'
 import { authHeader } from '../utils/apiFetch'
 import styles from './Analytics.module.css'
 
@@ -22,7 +22,8 @@ function StatCard({ label, value, sub }) {
 }
 
 export default function Analytics() {
-  const selectedDoctorId = useUiStore(s => s.activeDoctorId)
+  const doctor = useDoctorStore(s => s.doctor)
+  const selectedDoctorId = doctor?.id
 
   const { data: overview, isLoading: ovLoading } = useQuery({
     queryKey: ['analytics-overview', selectedDoctorId],

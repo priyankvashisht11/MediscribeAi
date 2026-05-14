@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useDoctors } from '../context/DoctorsContext'
-import { useUiStore } from '../stores/uiStore'
+import { LogOut } from 'lucide-react'
+import { useDoctorStore } from '../stores/doctorStore'
 import { authHeader } from '../utils/apiFetch'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
-function getInitials(name) {
+function getInitials(name = '') {
   return name
     .split(' ')
     .filter(w => w.match(/^[A-Z]/))
@@ -14,9 +14,14 @@ function getInitials(name) {
     .join('')
 }
 
+function logout() {
+  localStorage.removeItem('mediscribe_token')
+  useDoctorStore.getState().clearDoctor()
+  window.dispatchEvent(new Event('mediscribe_auth_change'))
+}
+
 export default function Settings() {
-  const { doctors } = useDoctors()
-  const { activeDoctorId, setActiveDoctorId } = useUiStore()
+  const doctor = useDoctorStore(s => s.doctor)
   const [health, setHealth] = useState(null)
 
   useEffect(() => {
@@ -27,10 +32,10 @@ export default function Settings() {
   }, [])
 
   const STATUS_ITEMS = [
-    { label: 'API Server',        ok: health?.status === 'ok' },
-    { label: 'Database',          ok: health?.db    === 'ok' },
-    { label: 'Session Cache',     ok: health?.redis  === 'ok' },
-    { label: 'Voice Engine',      ok: health?.deepgram === 'configured' },
+    { label: 'API Server',    ok: health?.status   === 'ok' },
+    { label: 'Database',      ok: health?.db        === 'ok' },
+    { label: 'Session Cache', ok: health?.redis     === 'ok' },
+    { label: 'Voice Engine',  ok: health?.deepgram  === 'configured' },
   ]
 
   return (
@@ -39,39 +44,34 @@ export default function Settings() {
         Settings
       </h1>
 
-      {/* Section 1 — Active Doctor */}
-      <div className="settings-section">
-        <h2 className="settings-section-title">Active Doctor</h2>
-        <p className="settings-section-desc text-muted">
-          Select which doctor is using this terminal. This is used for audit attribution.
-        </p>
-        <div className="doctor-selector">
-          {doctors.map(doc => (
+      {/* Section 1 — Signed-in doctor */}
+      {doctor && (
+        <div className="settings-section">
+          <h2 className="settings-section-title">Account</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+            <span className="doctor-chip-avatar" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, fontSize: 'var(--text-base)', flexShrink: 0 }}>
+              {getInitials(doctor.name)}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ margin: 0, fontWeight: 600 }}>{doctor.name}</p>
+              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+                {doctor.specialty} · {doctor.email}
+              </p>
+              <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                Role: {doctor.role} · Clinic: {doctor.clinic_name || '—'}
+              </p>
+            </div>
             <button
-              key={doc.id}
-              className={`doctor-chip${activeDoctorId === doc.id ? ' doctor-chip--active' : ''}`}
-              onClick={() => setActiveDoctorId(doc.id)}
+              className="btn btn-ghost btn-sm"
+              onClick={logout}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
             >
-              <span className="doctor-chip-avatar">{getInitials(doc.name)}</span>
-              <div className="doctor-chip-info">
-                <span className="doctor-chip-name">{doc.name}</span>
-                <span className="doctor-chip-specialty">{doc.specialty}</span>
-              </div>
-              {activeDoctorId === doc.id && (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-              )}
+              <LogOut size={14} />
+              Sign out
             </button>
-          ))}
-          {doctors.length === 0 && (
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-              Loading doctors…
-            </p>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Section 2 — System Status */}
       <div className="settings-section">
@@ -96,8 +96,8 @@ export default function Settings() {
         <h2 className="settings-section-title">About</h2>
         <table className="settings-table">
           <tbody>
-            <tr><td>Version</td><td>0.1.0-poc</td></tr>
-            <tr><td>Build</td><td>Sprint 8</td></tr>
+            <tr><td>Version</td><td>0.3.0</td></tr>
+            <tr><td>Build</td><td>Sprint 10</td></tr>
             <tr><td>AI Engine</td><td>MediScribe Clinical AI</td></tr>
             <tr><td>Speech Recognition</td><td>MediScribe Voice Engine (en-IN)</td></tr>
             <tr><td>Speaker Detection</td><td>MediScribe Voice Engine (built-in)</td></tr>
