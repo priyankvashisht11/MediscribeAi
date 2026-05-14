@@ -2,7 +2,7 @@
 MEDISCRIBE — SPRINT 10 SPECIFICATION
 Per-Doctor Auth + Clinic Foundation + Onboarding Funnel
 ═══════════════════════════════════════════════════════════════════
-Version: 1.1 — Security-vetted, all 9 issues applied
+Version: 1.2 — Final. All 12 issues applied (9 security vet + 3 final review)
 Date: 14 May 2026
 Status: APPROVED FOR IMPLEMENTATION
 
@@ -197,11 +197,13 @@ New endpoint: POST /api/auth/login
 
 New endpoint: GET /api/auth/me
   - Requires valid JWT
-  - Fetch doctor by id from JWT sub claim
-  - If doctor not found (deleted after token issued) → 404
-  - If not is_active → 403
-  - Returns: { id, name, specialty, email, role, clinic_id, clinic_name }
-    (clinic_name requires a JOIN to clinics table)
+  - Implementation steps (in order):
+    1. Decode doctor_id from JWT sub claim
+    2. Fetch doctor by id from DB
+    3. If doctor not found (deleted after token issued) → 404 "Doctor not found"
+    4. If doctor.is_active is False → 403 "Account disabled — contact your clinic admin"
+    5. Fetch clinic name via doctor.clinic_id JOIN
+    6. Return: { id, name, specialty, email, role, clinic_id, clinic_name }
 
   FAILURE HANDLING SPEC (frontend must implement all of these):
     401 / 403 → clear token from localStorage, redirect to /login,
@@ -342,6 +344,13 @@ POST /api/clinics/me/invites — Generate invite code
     - Returns: { invite_code, expires_at, invite_url }
     - invite_url = f"{settings.frontend_url}/join?code={invite_code}"
       (add frontend_url: str = "https://mediscribe-ai-eight.vercel.app" to config.py)
+
+PATCH /api/clinics/me — Update clinic name
+  Requires auth, role=admin → 403 for non-admin.
+  Body: { name: str }
+  Validates: name 2–100 chars, trimmed
+  Updates clinic.name in DB.
+  Returns: { id, name, plan_type, created_at, doctor_count }
 
 DELETE /api/clinics/me/doctors/:doctor_id — Deactivate a doctor
   Requires auth, role=admin.
@@ -619,6 +628,22 @@ Treat this list as a checklist — every item must be done.
      X-Doctor-Id header — this stays, no change needed in api.js
    - The chip selector in Settings becomes conditional on legacy PIN mode only
 
+   APP LOAD RACE CONDITION — must be handled:
+   On reload, the sequence is: token found → app starts rendering → GET /api/auth/me
+   fires async. Between start and resolution, activeDoctorId is still null.
+   If any component mounts and fires an API call in that window, X-Doctor-Id
+   goes out as null and the backend may return wrong data or 400.
+
+   Fix: the app must NOT render AppShell (and therefore must not mount any
+   data-fetching components) until GET /api/auth/me has fully resolved AND
+   both setCurrentDoctor() and uiStore.setActiveDoctorId(currentDoctor.id)
+   have been called. The "Connecting…" splash screen from S10-4 gates this.
+   It is not just an error state — it is the loading state for every app load.
+   App.jsx bootstrap pseudocode:
+     if (checking) return <ConnectingSplash />   // blocks all renders
+     if (!authed)  return <LoginPage />
+     return <AppShell />                          // only renders after /me resolved
+
 3. PinGate.jsx
    Keep it. Wrap the auth gating in App.jsx:
    ```
@@ -682,6 +707,7 @@ Complete ALL items before closing the sprint. No partial marks.
   must return 422 with a clear message
 □ Doctor cannot deactivate themselves → DELETE /api/clinics/me/doctors/{own_id}
   must return 400
+□ PATCH /api/clinics/me with a non-admin doctor token → must return 403
 
 ───────────────────────────────────────────────────────────────────
 WHAT NOT TO BUILD IN SPRINT 10
@@ -724,5 +750,5 @@ The most important part is S10-7. This sprint changes MediScribe from
 The checklist is mandatory, not optional. Ship nothing until every box is checked.
 
 ═══════════════════════════════════════════════════════════════════
-END OF SPRINT 10 SPEC v1.1
+END OF SPRINT 10 SPEC v1.2
 ═══════════════════════════════════════════════════════════════════
