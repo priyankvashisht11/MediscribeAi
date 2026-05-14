@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Radio, ClipboardList, Users,
+  LayoutDashboard, Radio, ClipboardList, Users, UserSquare,
   Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
   PlusCircle, Clock, BarChart2
 } from 'lucide-react'
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard',        to: '/' },
   { icon: Radio,           label: 'Active Sessions',  to: '/sessions/active' },
   { icon: ClipboardList,   label: 'Session History',  to: '/sessions/history' },
+  { icon: UserSquare,      label: 'Patients',         to: '/patients' },
   { icon: Users,           label: 'Doctors',          to: '/doctors' },
   { icon: BarChart2,       label: 'Analytics',        to: '/analytics' },
 ]

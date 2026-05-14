@@ -42,4 +42,13 @@ export const notesApi = {
   finalize: (noteId) => api.patch(`/api/notes/${noteId}/finalize`).then((r) => r.data),
 }
 
+export const patientsApi = {
+  list: (params) => api.get('/api/patients/', { params }).then((r) => r.data),
+  get: (id) => api.get(`/api/patients/${id}`).then((r) => r.data),
+  update: (id, body) => api.patch(`/api/patients/${id}`, body).then((r) => r.data),
+  sessions: (id) => api.get(`/api/patients/${id}/sessions`).then((r) => r.data),
+  analysis: (id) => api.get(`/api/patients/${id}/analysis`).then((r) => r.data),
+  flipAll: (sessionId) => api.patch(`/api/sessions/${sessionId}/flip-all-speakers`).then((r) => r.data),
+}
+
 export default api

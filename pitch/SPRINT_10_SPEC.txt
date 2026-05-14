@@ -1,0 +1,728 @@
+═══════════════════════════════════════════════════════════════════
+MEDISCRIBE — SPRINT 10 SPECIFICATION
+Per-Doctor Auth + Clinic Foundation + Onboarding Funnel
+═══════════════════════════════════════════════════════════════════
+Version: 1.1 — Security-vetted, all 9 issues applied
+Date: 14 May 2026
+Status: APPROVED FOR IMPLEMENTATION
+
+───────────────────────────────────────────────────────────────────
+SPRINT GOAL
+───────────────────────────────────────────────────────────────────
+Transform MediScribe from a shared-PIN terminal into a multi-doctor,
+clinic-aware product that can be handed to a real clinic without
+privacy concerns. The goal is the minimum necessary to be safe for
+a pilot with 2–5 doctors sharing a clinic.
+
+By end of Sprint 10:
+  - Every doctor has their own email + password login
+  - Sessions and patient records are scoped to the doctor's clinic
+  - A new clinic can onboard itself in under 5 minutes (solo or team)
+  - The PIN gate is replaced — existing PIN falls back gracefully
+
+This sprint DOES NOT include:
+  - Public landing page / self-serve acquisition (Sprint 11)
+  - Hospital roles (resident / senior / department) — build when asked
+  - Billing / subscription management
+  - ABHA validation
+  - Forgot password email flow (needs SMTP config — Sprint 11)
+
+───────────────────────────────────────────────────────────────────
+CURRENT STATE (what Sprint 9 left us)
+───────────────────────────────────────────────────────────────────
+Auth:
+  - Single PIN (1102) → JWT with doctor_id: null, sub: "pin_user"
+  - _make_token() in auth.py has a comment: "Sprint 9 will set this
+    to actual doctor UUID" — that comment is now Sprint 10's job
+  - verify_token() checks only expiry, not claims
+  - config.py has secret_key: str = "change_me_in_production" (default)
+    — this must be eliminated as a silent security hole
+  - No bcrypt, no email, no doctor-specific token
+
+Doctors:
+  - 5 seeded doctors exist (UUIDs 00000000-...-0001 through -0005)
+  - No password field on the Doctor model
+  - No clinic association
+  - Doctor selection is UI-only (uiStore.activeDoctorId), not tied to auth
+
+Data isolation:
+  - All patients and sessions are globally visible to any holder of the PIN
+  - No clinic_id column exists anywhere
+  - POST /api/sessions/ has doctor_id as a body param, not from the JWT
+  - WebSocket /ws/:session_id has no clinic scoping check
+  - This is a DPDP Act compliance gap for any live clinical deployment
+
+───────────────────────────────────────────────────────────────────
+TASK BREAKDOWN
+───────────────────────────────────────────────────────────────────
+
+S10-0 | DATABASE FOUNDATION — Clinics + Auth Fields (Backend)
+─────────────────────────────────────────────────────────────
+New table: clinics
+  - id: UUID PK
+  - name: str (e.g. "Dr. Ananya's Clinic", "City Health Centre")
+  - plan_type: str = "solo" | "clinic"  (no hospital yet)
+  - created_at: DateTime
+
+Extend doctors table (new nullable columns, startup migration):
+  - clinic_id: UUID FK → clinics.id (nullable during migration)
+  - email: str (unique, nullable during migration — set for seeded doctors)
+  - hashed_password: str (nullable — null = PIN-era account, login blocked)
+  - role: str = "admin" | "doctor" (default "doctor")
+  - is_active: bool (default True)
+
+Add clinic_id FK to:
+  - patients table: clinic_id UUID FK → clinics.id (nullable)
+  - sessions table: clinic_id UUID FK → clinics.id (nullable)
+
+All existing rows (Sprint 1–9 data) get clinic_id = null. This is safe —
+queries with clinic_id IS NULL are treated as "legacy/unscoped" data.
+The seeded doctors get a seeded clinic.
+
+New table: clinic_invites (in startup migration, not a separate file)
+  - id: UUID PK
+  - clinic_id: UUID FK → clinics.id
+  - invite_code: str (8-char random alphanumeric, unique)
+  - created_by: UUID FK → doctors.id (must be role=admin)
+  - email_hint: str nullable (pre-fill the email field in UI)
+  - used: bool (default false)
+  - used_by: UUID FK → doctors.id nullable
+  - expires_at: DateTime (48hr TTL)
+  - created_at: DateTime
+
+Startup migration (same ALTER TABLE IF NOT EXISTS pattern as Sprint 9):
+  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS clinic_id UUID;
+  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS hashed_password VARCHAR(255);
+  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'doctor';
+  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+  ALTER TABLE patients ADD COLUMN IF NOT EXISTS clinic_id UUID;
+  ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clinic_id UUID;
+  CREATE TABLE IF NOT EXISTS clinics (...);
+  CREATE TABLE IF NOT EXISTS clinic_invites (...);
+
+  NOTE: clinic_invites must be in the same startup migration block as clinics
+  — NOT in a separate Alembic file, because there is no Alembic runner on Fly.io.
+  The existing pattern in main.py _migrate_patient_columns() is the right model.
+
+Seed a "MediScribe Demo Clinic" for the 5 existing seeded doctors:
+  clinic_id = 00000000-0000-0000-0000-000000000099 (fixed for reproducibility)
+  plan_type = "clinic"
+  Set all 5 seeded doctors: clinic_id = above, role per below:
+    Dr. Ananya Sharma → role = "admin", email = "ananya@demo.mediscribe.in"
+    Dr. Rajesh Kumar  → role = "doctor", email = "rajesh@demo.mediscribe.in"
+    Dr. Priya Singh   → role = "doctor", email = "priya@demo.mediscribe.in"
+    Dr. Amit Verma    → role = "doctor", email = "amit@demo.mediscribe.in"
+    Dr. Sunita Rao    → role = "doctor", email = "sunita@demo.mediscribe.in"
+
+SEED PASSWORD:
+  hashed_password = bcrypt hash of settings.seed_doctor_password (see below)
+  Do NOT hardcode the seed password string in source code.
+  Read it from settings:
+
+    # config.py — new field
+    seed_doctor_password: str = "demo1234"
+    # Override via: flyctl secrets set SEED_DOCTOR_PASSWORD="..." --app mediscribe-api
+    # Add to .env.example: SEED_DOCTOR_PASSWORD=demo1234
+
+  In the seed function:
+    seed_password = settings.seed_doctor_password
+    hashed = pwd_context.hash(seed_password)
+
+NOTE: Do NOT remove the PIN gate yet. Keep ACCESS_PIN env var working.
+When a valid PIN is presented, issue a token with doctor_id=null and
+clinic_id=null (legacy mode). Full per-doctor tokens carry real UUIDs.
+This gives a zero-downtime migration path.
+
+───────────────────────────────────────────────────────────────────
+
+S10-1 | AUTH SYSTEM — Email/Password Login + JWT Claims (Backend)
+──────────────────────────────────────────────────────────────────
+BCRYPT PATTERN — use this exactly:
+
+  from passlib.context import CryptContext
+  pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+  # Hash a password:   pwd_context.hash(plain_password)
+  # Verify a password: pwd_context.verify(plain_password, hashed_password)
+
+  bcrypt rounds = 12 (CryptContext default for bcrypt). This gives ~250ms
+  on Fly.io shared-cpu-1x — acceptable for a login endpoint.
+  Do NOT use bcrypt directly and manage salt manually.
+  Do NOT use sha256, md5, or any non-adaptive hash for passwords.
+
+SECRET_KEY — FAIL HARD IF UNSET:
+  Current config.py has: secret_key: str = "change_me_in_production"
+  This means if SECRET_KEY is never set on Fly.io, all tokens are signed
+  with a publicly known string. Any attacker who reads this file can forge
+  admin tokens.
+
+  Fix in config.py:
+    secret_key: str = ""
+
+  Fix in auth.py, _make_doctor_token():
+    if not settings.secret_key:
+        raise RuntimeError(
+            "SECRET_KEY is not set. "
+            "Run: flyctl secrets set SECRET_KEY=$(openssl rand -hex 32)"
+        )
+
+  This means: if SECRET_KEY is missing, no tokens can be issued and any
+  attempt to log in returns 500. The server remains up, health checks pass,
+  but auth is blocked. This is intentional — better to be obviously broken
+  than silently insecure.
+
+  Deploy procedure for new installations:
+    flyctl secrets set SECRET_KEY=$(openssl rand -hex 32) --app mediscribe-api
+  (Generate a fresh random key — do not copy from any source)
+
+New Pydantic model: LoginRequest
+  - email: str
+  - password: str
+
+New endpoint: POST /api/auth/login
+  1. Normalize email: email.lower().strip()
+  2. Fetch doctor by LOWER(email) = normalized_email
+  3. If not found → 401 "Invalid credentials"
+     (same message as wrong password — prevents user enumeration)
+  4. If hashed_password is null → 401 "Account not set up — contact your clinic admin"
+  5. If not is_active → 403 "Account disabled — contact your clinic admin"
+  6. pwd_context.verify(password, hashed_password) — if fail → 401 "Invalid credentials"
+  7. Issue JWT with claims:
+       sub: str(doctor.id)
+       doctor_id: str(doctor.id)
+       clinic_id: str(doctor.clinic_id) if doctor.clinic_id else None
+       role: doctor.role
+       exp: now + 24h
+
+New endpoint: GET /api/auth/me
+  - Requires valid JWT
+  - Fetch doctor by id from JWT sub claim
+  - If doctor not found (deleted after token issued) → 404
+  - If not is_active → 403
+  - Returns: { id, name, specialty, email, role, clinic_id, clinic_name }
+    (clinic_name requires a JOIN to clinics table)
+
+  FAILURE HANDLING SPEC (frontend must implement all of these):
+    401 / 403 → clear token from localStorage, redirect to /login,
+                show toast "Session expired — please log in again"
+    404 (doctor deleted) → clear token, redirect to /login,
+                           show toast "Account not found — contact your admin"
+    Network error / timeout → do NOT redirect to /login
+      Show "Connecting…" spinner for up to 10 seconds
+      If still failing after 10s: show "Can't reach server — check your
+      connection" with a [Retry] button
+      The distinction between "logged out" and "offline" must be preserved —
+      a doctor on a spotty clinic WiFi should not be randomly logged out
+
+New endpoint: POST /api/auth/register (invite-based only)
+  - No JWT required (pre-auth endpoint)
+  - Body: { invite_code, name, specialty, email, password, confirm_password }
+  - Validation:
+      - invite_code must exist, not used, not expired → 410 Gone if expired/used
+        (use 410, not 401 — clearer UX: "This invite link has expired, ask your
+         admin for a new one" vs "Unauthorized" which implies wrong credentials)
+      - email must be unique across all doctors
+      - password must match confirm_password
+      - password: min 8 chars, at least one letter, at least one digit
+  - Creates: Doctor row with clinic_id from the invite, role="doctor"
+  - Marks invite as used (used=true, used_by=new doctor id)
+  - Returns: JWT (new doctor logged in immediately after registration)
+
+New endpoint: POST /api/auth/setup-password
+  - For seeded/invited doctors whose hashed_password is null
+  - Body: { setup_token, new_password }
+  - setup_token: short-lived (1hr) JWT containing doctor_id in claims
+  - Validates new_password requirements
+  - Sets hashed_password on the doctor row
+
+  NOTE: Sprint 10 does NOT need a full email delivery system to generate
+  setup_tokens. For the pilot, the admin can generate a setup link from the
+  /clinic console and share it via WhatsApp. The setup_token is a short JWT
+  signed with SECRET_KEY containing { doctor_id, purpose: "setup", exp: 1hr }.
+
+Update _make_token() → _make_doctor_token(doctor: Doctor) → str
+  Replace hardcoded sub/doctor_id/null with real values.
+  Keep the old _make_token() for PIN fallback only, renamed to _make_pin_token().
+
+Update verify_token() → decode_token(token: str) → dict | None
+  Return the full decoded payload dict so routes can read doctor_id + role.
+  Return None (not False, not raise) on any decode failure.
+  Callers check `if claims is None`.
+
+Update require_auth dependency in main.py:
+  Extract doctor_id and clinic_id from JWT claims.
+  Attach to request.state:
+    request.state.doctor_id: UUID | None
+    request.state.clinic_id: UUID | None
+    request.state.role: str | None  ("admin" | "doctor" | None for PIN tokens)
+
+PASSWORD VALIDATION RULE:
+  Apply at registration and setup-password endpoints only.
+  Do NOT reject weak passwords at login — the user might have set their
+  password before requirements were introduced.
+  Min 8 characters, at least one ASCII letter [a-zA-Z], at least one digit [0-9].
+
+───────────────────────────────────────────────────────────────────
+
+S10-2 | CLINIC CREATION + INVITE FLOW (Backend)
+────────────────────────────────────────────────
+RATE LIMITING on POST /api/clinics/ (required — do not skip):
+
+  This endpoint has no auth and creates DB rows. Without rate limiting,
+  a script can exhaust Supabase free tier in minutes.
+
+  Implement a simple in-memory rate limiter (sufficient for POC):
+
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+
+    _signup_attempts: dict[str, list[datetime]] = defaultdict(list)
+
+    def _check_signup_rate(ip: str) -> None:
+        now = datetime.utcnow()
+        window_start = now - timedelta(minutes=10)
+        _signup_attempts[ip] = [t for t in _signup_attempts[ip] if t > window_start]
+        if len(_signup_attempts[ip]) >= 3:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many signup attempts. Please wait 10 minutes."
+            )
+        _signup_attempts[ip].append(now)
+
+  Call _check_signup_rate(request.client.host) at the start of
+  POST /api/clinics/ before any DB operations.
+
+  Get the client IP via FastAPI's Request object:
+    from fastapi import Request
+    async def create_clinic(body: CreateClinicRequest, request: Request, ...):
+        _check_signup_rate(request.client.host)
+
+  NOTE: In-memory state is per-process and resets on deploy. This is
+  intentional — it's a friction layer, not a security guarantee. For Sprint 11
+  when public signups open, move to Redis-backed rate limiting.
+
+New endpoint: POST /api/clinics/ (no auth required — this IS signup)
+  Rate limited (see above).
+  Body: CreateClinicRequest
+    - clinic_name: str
+    - plan_type: Literal["solo", "clinic"]
+    - admin_name: str
+    - admin_specialty: str
+    - admin_email: str
+    - admin_password: str
+  Validation:
+    - admin_email unique across doctors
+    - password requirements (same rule as S10-1)
+    - clinic_name: 2–100 chars
+  Creates:
+    1. Clinic row (id, name, plan_type)
+    2. Doctor row (name, specialty, email, hashed_password, role="admin",
+       clinic_id=new clinic, is_active=true)
+  Returns: JWT (admin is logged in immediately)
+
+  For plan_type="solo": clinic_name auto-set on frontend to
+  "Dr. {admin_name}'s Practice" (user can edit). Backend accepts whatever
+  string is sent — no special handling needed.
+
+GET /api/clinics/me — Get current clinic details
+  Requires auth (any role).
+  Returns: { id, name, plan_type, created_at, doctor_count }
+
+GET /api/clinics/me/doctors — List all doctors in clinic
+  Requires auth, role=admin only → 403 for non-admin.
+  Returns: [ { id, name, specialty, email, role, is_active, created_at } ]
+
+POST /api/clinics/me/invites — Generate invite code
+  Requires auth, role=admin.
+  Body: { email_hint?: str }
+  Logic:
+    - Generate: ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+    - Insert into clinic_invites (expires_at = now + 48hr)
+    - Returns: { invite_code, expires_at, invite_url }
+    - invite_url = f"{settings.frontend_url}/join?code={invite_code}"
+      (add frontend_url: str = "https://mediscribe-ai-eight.vercel.app" to config.py)
+
+DELETE /api/clinics/me/doctors/:doctor_id — Deactivate a doctor
+  Requires auth, role=admin.
+  Cannot deactivate yourself → 400 "Cannot deactivate your own account"
+  Sets is_active=false (soft delete — data preserved for audit purposes)
+  Does NOT delete the doctor row or invalidate existing JWTs immediately.
+  (JWT TTL is 24h — deactivated doctors' tokens expire naturally.
+   For immediate revocation, Sprint 11 can add a token blacklist in Redis.)
+
+───────────────────────────────────────────────────────────────────
+
+S10-3 | DATA SCOPING — clinic_id ENFORCEMENT (Backend)
+───────────────────────────────────────────────────────
+This is the privacy enforcement layer. Every query that reads or writes
+patients, sessions, notes, or analytics must be scoped to clinic_id.
+
+RULE: All routes under /api/sessions/, /api/patients/, /api/notes/,
+/api/analytics/ must add:
+  .where(Model.clinic_id == request.state.clinic_id)
+to every DB query.
+
+Where clinic_id is null (legacy PIN tokens):
+  Skip the clinic_id filter entirely.
+  Check: if request.state.clinic_id is not None: [add the filter]
+  Legacy data is globally visible to PIN holders only.
+  This is the backward-compat escape hatch — remove it in Sprint 11
+  once all doctors have migrated to email login.
+
+POST /api/sessions/ — Breaking change:
+  - doctor_id is now taken from JWT (request.state.doctor_id), NOT from body
+  - Remove doctor_id from CreateSessionRequest body
+  - Set session.clinic_id = request.state.clinic_id on creation
+  - Set patient.clinic_id = request.state.clinic_id on new patient creation
+  - Dedup query must also filter by clinic_id:
+    .where(func.lower(Patient.name) == name.lower(), Patient.age == age,
+           Patient.clinic_id == request.state.clinic_id)
+    (Khushi, 22 at Clinic A is distinct from Khushi, 22 at Clinic B)
+
+WEBSOCKET ENDPOINT — MUST be scoped (security gap from original spec):
+  The WS endpoint at /ws/{session_id}?token=JWT currently validates the
+  token but does NOT check that the session belongs to the same clinic.
+  A doctor from Clinic B who guesses a session UUID can listen to Clinic A's
+  live session in real time.
+
+  Add to ws.py, after JWT validation and before accepting the WebSocket:
+
+    session = await db.get(Session, session_id)
+    if session is None:
+        await websocket.close(code=4004)
+        return
+    token_clinic_id = token_claims.get("clinic_id")
+    if token_clinic_id and str(session.clinic_id) != token_clinic_id:
+        await websocket.close(code=4003)  # Forbidden
+        return
+
+  WebSocket close codes used:
+    4003 = Forbidden (wrong clinic)
+    4004 = Not found (session doesn't exist)
+
+ANALYTICS SCOPING:
+  All analytics queries must filter by clinic_id at the DB level.
+  Do NOT leave clinic_id as an optional query param that callers can omit.
+  A doctor cannot see another clinic's stats even if they manually craft a request.
+
+───────────────────────────────────────────────────────────────────
+
+S10-4 | ONBOARDING FUNNEL (Frontend)
+─────────────────────────────────────
+Replace the PIN gate (PinGate.jsx) with a full auth flow.
+See S10-6 for backwards compat — PinGate stays, conditionally rendered.
+
+NEW PAGES:
+
+/login — LoginPage.jsx
+  - Email + Password fields
+  - "Log In" button → POST /api/auth/login
+  - Link: "Setting up a new clinic? →" → /onboarding
+  - Link: "Have an invite code? →" → /join
+  - On success: store JWT in localStorage, call GET /api/auth/me,
+    dispatch setCurrentDoctor(data), redirect to /
+  - Error states:
+      401 → "Incorrect email or password"
+      403 → "This account has been disabled. Contact your clinic admin."
+      500 → "Something went wrong. Try again."
+
+/onboarding — OnboardingPage.jsx
+  Two-step flow:
+
+  Step 1 — "How are you setting up?"
+
+    ┌──────────────────────────┐   ┌──────────────────────────┐
+    │  👨‍⚕️ Just Me              │   │  🏥 My Clinic             │
+    │                          │   │                          │
+    │  Solo practitioner       │   │  2–10 doctors            │
+    │  I work alone            │   │  I want to invite        │
+    │                          │   │  my colleagues           │
+    └──────────────────────────┘   └──────────────────────────┘
+
+    (Hospital option: link to "Contact us" — not a page, not a flow)
+
+  Step 2A — Solo setup (plan_type = "solo")
+    Clinic name: pre-filled as "Dr. [name]'s Practice" once name is typed
+                 (editable — use a controlled input, update as user types name)
+    Your name: text input (required)
+    Specialty: select dropdown (same options as existing Doctors page)
+    Email: text input (required)
+    Password: password input (required)
+    Confirm password: password input (required)
+    [Create My Account →] → POST /api/clinics/
+
+  Step 2B — Clinic setup (plan_type = "clinic")
+    Clinic name: text input (required)
+    Your name: text input (required)
+    Your specialty: select dropdown
+    Email: text input (required)
+    Password: password input (required)
+    Confirm password: password input (required)
+    [Create Clinic & Continue →] → POST /api/clinics/
+
+    After successful creation: show invite screen
+      "Your clinic is ready. Invite your colleagues:"
+      [ Invite code: XXXXYYYY ] [ Copy ]
+      [ Send via WhatsApp ]
+        → opens: https://wa.me/?text=You've+been+invited+to+join+{clinic_name}
+          +on+MediScribe.+Set+up+your+account:+{invite_url}
+          (URL-encode the text parameter, replace spaces with + or %20)
+          No Meta API key required — this is the public web share URL.
+      [ Go to Dashboard → ]
+
+  Both steps call POST /api/clinics/ on submit.
+  On success: store JWT → call GET /api/auth/me → setCurrentDoctor → redirect /
+
+/join?code=XXXX — JoinClinicPage.jsx
+  On mount: fetch invite details (clinic name, invited-by name) using code.
+    If 410 Gone: show "This invite link has expired or has already been used.
+    Ask your clinic admin to generate a new one." (Do NOT show 401/404 messages
+    — 410 Gone is the correct status for expired/used invites, use it and
+    handle it specifically in the frontend.)
+  Form (pre-filled where available):
+    Name: text input (required)
+    Specialty: select (required)
+    Email: text input (pre-filled from email_hint if set)
+    Password: password input
+    Confirm password: password input
+  [Join {clinic_name} →] → POST /api/auth/register
+  On success: JWT → setCurrentDoctor → redirect /
+
+NEW STORE: doctorStore (Zustand, new file src/stores/doctorStore.js)
+
+  State:
+    currentDoctor: {
+      id: string,
+      name: string,
+      specialty: string,
+      email: string,
+      role: "admin" | "doctor",
+      clinic_id: string,
+      clinic_name: string,
+    } | null
+
+  Actions:
+    setCurrentDoctor(doctor): void
+    clearCurrentDoctor(): void
+
+  Selector helper (use this everywhere — don't read currentDoctor directly):
+    export const useCurrentDoctor = () => useDoctorStore(s => s.currentDoctor)
+
+  Populated by:
+    1. App load: if token valid → GET /api/auth/me → setCurrentDoctor
+    2. Login success: response → setCurrentDoctor
+    3. Logout: clearCurrentDoctor + remove token + navigate('/login')
+
+LOGOUT:
+  Add logout button to AppShell — visible in sidebar bottom nav and in Settings.
+  logout():
+    1. Remove 'mediscribe_token' from localStorage
+    2. clearCurrentDoctor()
+    3. navigate('/login')
+    4. Optional: POST /api/auth/logout (no-op endpoint for future token blacklist)
+
+GET /api/auth/me — FAILURE HANDLING (implement all three cases):
+  SUCCESS → setCurrentDoctor(data), render app
+  401 / 403 / 404:
+    clearCurrentDoctor()
+    removeItem('mediscribe_token')
+    navigate('/login')
+    addToast({ type: 'error', message: 'Session expired — please log in again' })
+  NETWORK ERROR (fetch throws, or status 0, or AbortError):
+    Do NOT clear token. Do NOT redirect to /login.
+    Show a full-screen "Connecting…" state with a spinner.
+    After 10 seconds of retrying: show "Can't reach MediScribe server.
+    Check your connection." with a [Retry] button.
+    The distinction matters: a doctor on spotty clinic WiFi must not be
+    randomly logged out mid-session.
+
+SETTINGS PAGE UPDATE:
+  The "Active Doctor" section currently shows a chip selector for any doctor.
+  In authenticated mode: replace with a read-only profile card:
+    ┌──────────────────────────────────────┐
+    │  👤 Dr. Ananya Sharma                │
+    │  General Physician                   │
+    │  City Health Centre (Clinic)         │
+    │  ananya@demo.mediscribe.in           │
+    │                            [Log Out] │
+    └──────────────────────────────────────┘
+  In legacy PIN mode: keep chip selector (backwards compat).
+
+BACKWARDS COMPAT (PIN mode detection):
+  function _isLegacyToken(token):
+    decoded = base64 decode the payload
+    return decoded.doctor_id === null
+
+  If a valid token with doctor_id=null exists in localStorage:
+    → show PinGate (not LoginPage)
+    → after PIN validation, issue legacy token, skip doctorStore
+    → show a banner in AppShell: "You're using shared PIN access.
+      Set up individual doctor accounts in Settings → Upgrade."
+    → chip selector in Settings stays active in this mode
+
+───────────────────────────────────────────────────────────────────
+
+S10-5 | CLINIC ADMIN CONSOLE (Frontend)
+────────────────────────────────────────
+A new page only visible to doctors with role=admin.
+
+/clinic — ClinicAdmin.jsx (lazy-loaded, same as other pages)
+  Route guard: if currentDoctor.role !== 'admin' → navigate('/') with
+               toast "Admin access required"
+
+  Section 1 — Your Clinic
+    Clinic name (editable via PATCH /api/clinics/me — add this endpoint)
+    Plan type (read-only: "Solo" or "Clinic")
+    Created date
+
+  Section 2 — Doctors (only if plan_type = "clinic")
+    List of all doctors from GET /api/clinics/me/doctors
+    Each doctor row:
+      Name · Specialty · Email · Role badge · Status (Active/Inactive)
+      [Deactivate] button (greyed out for yourself)
+    [+ Invite a Doctor] button:
+      Opens a modal:
+        Email (optional): input with placeholder "Pre-fill their email"
+        [Generate Invite Code]
+      Shows:
+        Code: XXXXYYYY (large, monospace)
+        Link: https://mediscribe-ai-eight.vercel.app/join?code=XXXXYYYY
+        [Copy Link] | [Send via WhatsApp]
+          WhatsApp URL: https://wa.me/?text={URL-encoded invite message}
+        "This link expires in 48 hours and can only be used once."
+
+Add "Clinic" nav item in AppShell NAV_ITEMS:
+  { icon: Building2, label: 'Clinic', to: '/clinic' }
+  Import Building2 from lucide-react.
+  Conditionally rendered: only show if currentDoctor?.role === 'admin'
+  AND currentDoctor is not null (don't show in PIN legacy mode).
+
+───────────────────────────────────────────────────────────────────
+
+S10-6 | BREAKING CHANGES + MIGRATION NOTES
+───────────────────────────────────────────
+The following existing files must change in Sprint 10.
+Treat this list as a checklist — every item must be done.
+
+1. NewSession.jsx
+   - Remove doctor_id from the POST body sent to /api/sessions/
+   - Remove Step 0 "Select Doctor" entirely
+   - Replace Step 0 with a read-only card: "Recording as Dr. [currentDoctor.name]"
+   - Flow simplifies from 3 steps to 2 steps (Patient + Consent → Start)
+   - This is a clean UX improvement, not just a refactor
+
+2. uiStore.activeDoctorId
+   - In authenticated mode: set activeDoctorId = currentDoctor.id on login
+     so the X-Doctor-Id header in api.js interceptor keeps working without change
+   - The api.js interceptor reads activeDoctorId from uiStore and sends it as
+     X-Doctor-Id header — this stays, no change needed in api.js
+   - The chip selector in Settings becomes conditional on legacy PIN mode only
+
+3. PinGate.jsx
+   Keep it. Wrap the auth gating in App.jsx:
+   ```
+   if (_isLegacyToken(token)) → show PinGate
+   else if (tokenValid)       → render app
+   else                       → show LoginPage
+   ```
+   Do not delete PinGate.jsx — the demo deployment still uses PIN=1102.
+
+4. AppShell.jsx BOTTOM_TABS (mobile)
+   The mobile "Doctors" tab (to: '/doctors') lists all system doctors.
+   After Sprint 10, scoped to clinic doctors only (backend handles this).
+   No frontend change needed — just verify the Doctors page shows only
+   clinic-scoped doctors after S10-3 scoping is applied.
+
+5. Analytics.jsx, Dashboard.jsx, SessionHistory.jsx — CRITICAL
+   All three files use useQuery() with a doctor ID pulled from uiStore:
+     const selectedDoctorId = useUiStore(s => s.activeDoctorId)
+     useQuery(['analytics-overview', selectedDoctorId], ...)
+
+   After Sprint 10, doctor ID comes from doctorStore:
+     const currentDoctor = useDoctorStore(s => s.currentDoctor)
+     useQuery(['analytics-overview', currentDoctor?.id], ...)
+
+   If Kiro updates the store but not these query keys, the analytics page
+   will silently show stale or wrong data. Update all three files explicitly.
+
+   Search the entire frontend codebase for "activeDoctorId" and replace
+   each occurrence with the correct doctorStore equivalent. Do not leave
+   any uiStore.activeDoctorId references in data-fetching code.
+
+───────────────────────────────────────────────────────────────────
+
+S10-7 | SECURITY REVIEW CHECKLIST
+────────────────────────────────────
+Complete ALL items before closing the sprint. No partial marks.
+
+□ Passwords are bcrypt-hashed via passlib CryptContext — never stored plaintext,
+  never logged, never returned in any API response
+□ SECRET_KEY env var set via flyctl secrets, NOT default string:
+    flyctl secrets set SECRET_KEY=$(openssl rand -hex 32) --app mediscribe-api
+□ SECRET_KEY unset → server issues RuntimeError at token creation, not a
+  silently weak token. Test: temporarily unset SECRET_KEY, attempt login →
+  must return 500, not issue a JWT
+□ POST /api/auth/login returns identical error message for wrong email and
+  wrong password (prevents user enumeration). Verify by testing both cases.
+□ POST /api/clinics/ called 4 times within 1 minute from same IP → 4th
+  call must return 429, not create a fourth clinic
+□ GET /api/patients/ with a Clinic B token must NOT return Clinic A patients.
+  Test by creating two clinics, getting a token from each, cross-querying.
+□ GET /api/sessions/ same cross-clinic isolation test
+□ Admin-only endpoints (POST /api/clinics/me/invites, DELETE /api/clinics/me/doctors/:id)
+  tested with a non-admin doctor token → must return 403
+□ WS /ws/{session_id_from_clinic_A}?token=<clinic_B_token>
+  → WebSocket must close with code 4003, not stream any audio
+□ GET /api/auth/me with a valid token for a doctor who was deactivated after
+  token issuance → must return 403, not 200 with stale data
+□ Expired invite code (used or past 48hr TTL) → POST /api/auth/register
+  must return 410 Gone, not 401 or 404
+□ Password with fewer than 8 chars or no digits → POST /api/auth/register
+  must return 422 with a clear message
+□ Doctor cannot deactivate themselves → DELETE /api/clinics/me/doctors/{own_id}
+  must return 400
+
+───────────────────────────────────────────────────────────────────
+WHAT NOT TO BUILD IN SPRINT 10
+───────────────────────────────────────────────────────────────────
+Explicitly out of scope:
+
+✗ Public landing page or marketing copy
+✗ Stripe/Razorpay payment integration
+✗ "Forgot password" email flow (needs SMTP — Sprint 11)
+✗ Doctor profile photo uploads
+✗ ABHA ID verification
+✗ Hospital roles (resident / senior / department) — build when asked
+✗ Audit log UI (data captured, UI is Sprint 11)
+✗ Two-factor authentication
+✗ Google/Apple OAuth
+✗ Redis-backed rate limiting (in-memory is sufficient for POC)
+✗ JWT token blacklist / immediate revocation (deactivated doctors' tokens
+  expire naturally within 24h — acceptable for this stage)
+
+───────────────────────────────────────────────────────────────────
+EFFORT ESTIMATE
+───────────────────────────────────────────────────────────────────
+S10-0  DB foundation + migration             ~2h
+S10-1  Auth system (login, JWT, bcrypt)      ~3h
+S10-2  Clinic creation + invite flow         ~2h
+S10-3  Data scoping enforcement              ~3-4h  ← touches every router
+S10-4  Onboarding funnel frontend            ~4h
+S10-5  Clinic admin console frontend         ~2h
+S10-6  Breaking changes (5 files)            ~2h
+S10-7  Security review + smoke testing       ~1h
+
+Total estimate: ~19-20h of focused implementation
+
+The hardest part is S10-3 (data scoping) — it touches every router file
+and requires careful testing for both the scoped path and the null-clinic_id
+escape hatch. Do not underestimate it.
+
+The most important part is S10-7. This sprint changes MediScribe from
+"impressive demo" to "handles real patient data under DPDP Act 2025."
+The checklist is mandatory, not optional. Ship nothing until every box is checked.
+
+═══════════════════════════════════════════════════════════════════
+END OF SPRINT 10 SPEC v1.1
+═══════════════════════════════════════════════════════════════════

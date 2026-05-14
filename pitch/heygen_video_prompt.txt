@@ -1,0 +1,237 @@
+═══════════════════════════════════════════════════════════════════
+HEYGEN VIDEO AGENT — MEDISCRIBE PITCH AD
+ONE SHOT. MAKE IT COUNT.
+═══════════════════════════════════════════════════════════════════
+
+PASTE THIS ENTIRE PROMPT INTO HEYGEN VIDEO AGENT'S DESCRIPTION BOX.
+
+───────────────────────────────────────────────────────────────────
+SETTINGS TO SELECT BEFORE GENERATING:
+───────────────────────────────────────────────────────────────────
+Avatar:   Choose an Indian-presenting male or female doctor avatar
+          (professional attire, clinic/office background preferred)
+Voice:    English (Indian accent) — calm, authoritative, warm
+Style:    Cinematic
+Duration: Under 60 seconds
+Music:    Subtle, modern, ambient underscore — builds toward the end
+
+───────────────────────────────────────────────────────────────────
+VIDEO PROMPT (paste below into "Describe your video idea"):
+───────────────────────────────────────────────────────────────────
+
+Create a cinematic 55-second advertisement video for MediScribe —
+an AI medical scribe built specifically for Indian doctors.
+
+TONE: Urgent, emotional, empowering. Like an Apple product launch
+meets a doctor's personal story. Not a tutorial. Not a demo.
+A declaration.
+
+VISUAL STYLE: Dark to light arc. Opens with heavy, tired clinical
+atmosphere — papers, pens, exhausted doctor. Ends with clean,
+bright, confident doctor fully present with their patient.
+Color grade: warm teal and white (MediScribe brand colors #01696f).
+
+---
+
+SCENE-BY-SCENE BREAKDOWN:
+
+[0–5s] HOOK — EMOTIONAL OPEN
+Avatar on camera, slight pause, direct eye contact.
+Background: blurred clinic, stacks of paper, dim light.
+Text overlay (bottom third): "Every doctor knows this feeling."
+
+Voiceover:
+"You became a doctor to heal people.
+Not to write notes."
+
+---
+
+[5–12s] THE PROBLEM — BUILD URGENCY
+Cut to graphic: clock ticking, "40 patients/day" counter.
+Numbers animate: 40 patients × 4 minutes = 160 minutes lost.
+Bold text appears: "2.5 HOURS. GONE. EVERY SINGLE DAY."
+
+Voiceover:
+"40 patients a day. 4 minutes of paperwork each.
+That's 2.5 hours — gone. Every single day.
+
+What if you never wrote a clinical note again?"
+
+---
+
+[12–18s] PRODUCT REVEAL — THE PIVOT
+Avatar back on screen. Background shifts — clinic but clean,
+bright. Avatar smiles with quiet confidence.
+MediScribe logo animates in — teal, minimal, modern.
+
+Voiceover:
+"Introducing MediScribe."
+
+Brief silence. Let it land.
+
+---
+
+[18–30s] HOW IT WORKS — SIMPLE AND POWERFUL
+B-roll placeholder slots (user will insert screen recordings here):
+  SLOT A: Doctor talking naturally to a patient [INSERT SCREEN GRAB]
+  SLOT B: Real-time transcript appearing on screen [INSERT SCREEN GRAB]
+  SLOT C: SOAP note appearing fully generated [INSERT SCREEN GRAB]
+
+Voiceover over the B-roll:
+"Just talk to your patient — like you always have.
+MediScribe listens. It knows your voice. It knows theirs.
+
+The moment the consultation ends —
+your SOAP note is ready."
+
+---
+
+[30–42s] THE THREE OUTPUTS — THE CLOSER
+Three cards animate in sequence, each with icon + title:
+
+Card 1 — SOAP NOTE PDF
+Icon: document with checkmark
+"Complete clinical note — Chief Complaint, Subjective, Objective,
+Assessment, Plan, ICD-10 codes. Structured. Signed. Exportable."
+
+Card 2 — PRESCRIPTION PDF
+Icon: Rx symbol
+"Structured prescription — drug name, dose, frequency, duration.
+Ready to hand to the patient or pharmacist. One click."
+
+Card 3 — PATIENT INSTRUCTIONS PDF
+Icon: person with heart
+"Plain-English visit summary for the patient — what was found,
+medications, tests needed, warning signs to watch for.
+No medical jargon. Just clarity."
+
+Voiceover:
+"ICD codes. Prescription. Patient instructions.
+All generated. All exportable. In seconds.
+
+Review. Edit. Sign. Done."
+
+---
+
+[42–50s] TRUST — INDIA-FIRST
+Text overlays animate one by one:
+✓ Indian doctors. Indian accents.
+✓ Mumbai servers. Your data stays in India.
+✓ Works on any device. Any browser. No installation.
+
+Voiceover:
+"MediScribe is live today.
+Indian doctors. Indian accents. Mumbai servers.
+Your data stays here."
+
+---
+
+[50–56s] CALL TO ACTION — LAND THE PUNCH
+Avatar returns. Full frame. Calm. Powerful.
+Background: bright, clean clinic.
+Avatar looks directly into camera.
+
+Voiceover (slower, deliberate):
+"Stop documenting.
+Start healing."
+
+[Brief pause — 1 second silence]
+
+---
+
+[56–60s] LOGO END CARD
+MediScribe logo — full frame, teal on white.
+Tagline below: "The AI scribe built for India's doctors."
+URL: mediscribe-ai-eight.vercel.app
+Subtle fade out.
+
+Voiceover:
+"MediScribe. The AI scribe built for India's doctors."
+
+───────────────────────────────────────────────────────────────────
+WHAT MEDISCRIBE ACTUALLY DOES (for HeyGen context accuracy):
+───────────────────────────────────────────────────────────────────
+
+MediScribe is a live AI medical scribe. The doctor opens the app,
+starts a session, and speaks naturally with their patient.
+MediScribe records and transcribes in real time using Deepgram
+Nova-3 — a model trained on medical vocabulary, tuned for Indian
+English accents. It automatically separates the doctor's voice
+from the patient's voice (speaker diarization) so the transcript
+is correctly attributed.
+
+When the session ends, the AI (Perplexity sonar-reasoning-pro —
+a medical reasoning model, not a generic chatbot) reads the full
+transcript and generates a complete SOAP note:
+  - Chief Complaint
+  - Subjective (patient history, HPI)
+  - Objective (vitals, exam findings)
+  - Assessment (diagnosis, differentials)
+  - Plan (medications, investigations, follow-up)
+  - ICD-10 Codes (for billing and insurance)
+
+The doctor reviews, edits inline if needed, and clicks Finalize.
+
+Three documents are then available for download:
+
+1. SOAP NOTE PDF — Full structured clinical note with all sections,
+   ICD-10 codes, doctor name, patient name, age, date, duration,
+   AI confidence score. Clinic-branded. Print-ready.
+
+2. PRESCRIPTION PDF — Structured Rx with each medication listed:
+   drug name, dose, frequency, duration, special instructions.
+   Investigations advised. Follow-up date. Doctor signature line.
+   Ready to hand to patient or send to pharmacy.
+
+3. PATIENT INSTRUCTIONS PDF — Plain-English visit summary:
+   "What Was Found Today" (AI simplifies clinical language),
+   "Your Medications" with instructions,
+   "Tests To Get Done",
+   "Come Back Immediately If:" (AI-extracted warning signs in
+   plain language the patient can understand),
+   Follow-up instructions.
+   Designed for the patient to take home.
+
+All infrastructure runs in India (Mumbai). No audio is stored after
+transcription. The app runs in any browser on any device — no
+installation, no app download, no IT setup required.
+
+───────────────────────────────────────────────────────────────────
+WHY DOCTORS DESPERATELY WANT THIS:
+───────────────────────────────────────────────────────────────────
+
+A busy Indian GP sees 40–80 patients per OPD session.
+Each note takes 3–5 minutes to write by hand.
+That's 2–4 hours of documentation per day — unpaid, unrecognized,
+and done at the cost of attention to actual patients.
+
+Common complaints from Indian doctors:
+- "I can't look at my patient because I'm writing"
+- "My notes are incomplete because I rush them"
+- "I forget details from the first patient by the time I see the tenth"
+- "Prescriptions are illegible — patients go to wrong pharmacy"
+- "Insurance rejections because ICD codes were wrong or missing"
+- "I go home exhausted from paperwork, not from medicine"
+
+MediScribe solves all of this. The doctor never holds a pen during
+consultation. Full attention stays on the patient. The note is more
+complete than anything hand-written because it's based on the full
+conversation, not memory. ICD codes are auto-suggested. Prescription
+is typed and structured. Patient leaves with a clear instruction sheet.
+
+ROI: At ₹500/hour saved, MediScribe pays for itself in under 3 days.
+
+───────────────────────────────────────────────────────────────────
+B-ROLL NOTE (for later insertion):
+───────────────────────────────────────────────────────────────────
+
+User will insert 3 screen recordings into SLOT A, B, C marked above:
+  SLOT A: ~5s clip of doctor + patient conversation (live session running)
+  SLOT B: ~5s clip of real-time transcript appearing on screen
+  SLOT C: ~5s clip of completed SOAP note / PDF downloading
+
+These will replace the placeholder text in the [18–30s] scene.
+
+═══════════════════════════════════════════════════════════════════
+END OF HEYGEN PROMPT
+═══════════════════════════════════════════════════════════════════

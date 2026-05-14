@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { apiFetch, authHeader } from '../utils/apiFetch'
+import { patientsApi } from '../services/api'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -11,6 +12,7 @@ export default function TranscriptViewer() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [flipping, setFlipping] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -28,6 +30,22 @@ export default function TranscriptViewer() {
   }
 
   useEffect(() => { load() }, [sessionId])
+
+  const handleFlipAll = async () => {
+    setFlipping(true)
+    try {
+      await patientsApi.flipAll(sessionId)
+      // Update local state to reflect the flip
+      setChunks(prev => prev.map(c => ({
+        ...c,
+        speaker: c.speaker === 'doctor' ? 'patient' : c.speaker === 'patient' ? 'doctor' : c.speaker,
+      })))
+    } catch (err) {
+      console.error('Flip all failed:', err)
+    } finally {
+      setFlipping(false)
+    }
+  }
 
   const handleSpeakerToggle = async (chunk) => {
     const newSpeaker = chunk.speaker === 'doctor' ? 'patient' : 'doctor'
@@ -70,15 +88,27 @@ export default function TranscriptViewer() {
             </p>
           )}
         </div>
-        {session?.id && (
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => navigate(`/sessions/${sessionId}/review`)}
-            style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
-          >
-            View Note →
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          {chunks.length > 0 && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={handleFlipAll}
+              disabled={flipping}
+              title="Swap all doctor↔patient labels"
+            >
+              {flipping ? 'Flipping…' : '⇄ Flip all speakers'}
+            </button>
+          )}
+          {session?.id && (
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => navigate(`/sessions/${sessionId}/review`)}
+              style={{ borderColor: 'var(--color-primary)', color: 'var(--color-primary)' }}
+            >
+              View Note →
+            </button>
+          )}
+        </div>
       </div>
 
       {chunks.length === 0 ? (

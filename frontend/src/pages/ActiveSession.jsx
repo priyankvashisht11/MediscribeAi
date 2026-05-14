@@ -7,7 +7,7 @@ import { useSessionWs } from '../hooks/useSessionWs'
 import { useAudioCapture } from '../hooks/useAudioCapture'
 import { useUiStore } from '../stores/uiStore'
 import { apiFetch } from '../utils/apiFetch'
-import { Square, RefreshCw } from 'lucide-react'
+import { Square, RefreshCw, ArrowLeftRight } from 'lucide-react'
 import styles from './ActiveSession.module.css'
 
 // Helper: format seconds as MM:SS
@@ -144,6 +144,7 @@ export default function ActiveSession() {
   const [note, setNote] = useState(null)
   const [noteFields, setNoteFields] = useState({})
   const [ending, setEnding] = useState(false)
+  const [showEndModal, setShowEndModal] = useState(false)
 
   const speakerMapEstablished = transcriptChunks.some(
     c => c.speaker === 'doctor' || c.speaker === 'patient'
@@ -206,6 +207,7 @@ export default function ActiveSession() {
 
   const handleEndSession = async () => {
     setEnding(true)
+    setShowEndModal(false)
     try {
       // PATCH /end first — reads transcript from Redis while WebSocket is still open.
       // stopCapture() second — closing the WS triggers Redis cleanup in ws.py.
@@ -217,6 +219,15 @@ export default function ActiveSession() {
     }
     try { stopCapture() } catch (_) {}
     navigate(`/sessions/${sessionId}/review`)
+  }
+
+  // Flip all speaker labels live (in-memory only — DB flip happens post-session via TranscriptViewer)
+  const handleFlipSpeakers = () => {
+    transcriptChunks.forEach(chunk => {
+      const flipped = chunk.speaker === 'doctor' ? 'patient' : chunk.speaker === 'patient' ? 'doctor' : chunk.speaker
+      if (flipped !== chunk.speaker) updateChunkSpeaker(chunk.chunkIndex, flipped)
+    })
+    addToast({ type: 'success', message: 'Speaker labels flipped. Review and confirm after session.' })
   }
 
   return (
@@ -308,9 +319,20 @@ export default function ActiveSession() {
           </div>
 
           <div className={styles.panelFooter}>
+            {speakerMapEstablished && (
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={handleFlipSpeakers}
+                title="Flip all doctor↔patient labels"
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+                         fontSize: 'var(--text-xs)', marginRight: 'auto' }}
+              >
+                <ArrowLeftRight size={13} /> Flip speakers
+              </button>
+            )}
             <button
               className={styles.endBtn}
-              onClick={handleEndSession}
+              onClick={() => setShowEndModal(true)}
               disabled={ending}
             >
               <Square size={14} fill="currentColor" />
@@ -371,6 +393,63 @@ export default function ActiveSession() {
           </div>
         </div>
       </div>
+
+      {/* End-session confirmation modal */}
+      {showEndModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 200,
+          }}
+          onClick={() => !ending && setShowEndModal(false)}
+        >
+          <div
+            style={{
+              background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-8)', width: 360, maxWidth: '90vw',
+              boxShadow: 'var(--shadow-xl)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
+              End Session?
+            </h2>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)',
+                         marginBottom: 'var(--space-2)', lineHeight: 1.6 }}>
+              The session will end and the AI will generate a SOAP note from the transcript.
+            </p>
+            <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)',
+                         marginBottom: 'var(--space-6)', lineHeight: 1.6 }}>
+              <strong style={{ color: 'var(--color-text)' }}>
+                {transcriptChunks.length} chunks
+              </strong>{' '}
+              recorded ·{' '}
+              <strong style={{ color: 'var(--color-text)' }}>
+                {Math.floor(elapsed / 60)}m {elapsed % 60}s
+              </strong>
+            </p>
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setShowEndModal(false)}
+                style={{ flex: 1 }}
+              >
+                Continue Recording
+              </button>
+              <button
+                className={styles.endBtn}
+                onClick={handleEndSession}
+                disabled={ending}
+                style={{ flex: 1 }}
+              >
+                <Square size={13} fill="currentColor" />
+                {ending ? 'Ending…' : 'End & Generate Note'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

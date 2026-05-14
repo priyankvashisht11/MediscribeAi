@@ -1,0 +1,474 @@
+═══════════════════════════════════════════════════════════════════
+MEDISCRIBE — SPRINT 9 SPECIFICATION
+Patient Directory & Longitudinal Health Intelligence
+═══════════════════════════════════════════════════════════════════
+Version: 1.1 — Perplexity-vetted, all 10 issues applied
+Date: 14 May 2026
+Status: APPROVED FOR IMPLEMENTATION
+
+───────────────────────────────────────────────────────────────────
+SPRINT GOAL
+───────────────────────────────────────────────────────────────────
+Transform MediScribe from a per-session scribe into a full patient
+intelligence system. The doctor should be able to walk into a
+consultation already knowing this patient's history — every previous
+visit, every diagnosis, every medication ever prescribed — and leave
+with an AI-generated longitudinal health summary that connects the
+dots across all visits.
+
+───────────────────────────────────────────────────────────────────
+CURRENT STATE (what Sprint 8 left us)
+───────────────────────────────────────────────────────────────────
+- Patient model EXISTS in DB: id, abha_id, name, age, gender, phone
+- sessions.patient_id FK to patients.id EXISTS
+- Sessions create a Patient row on each new session (no deduplication)
+- No patient search, no patient profile page, no visit history UI
+- No cross-visit AI analysis exists anywhere
+- Auth is PIN-only (no per-doctor login — relevant for patient privacy)
+
+PRIVACY CAVEAT FOR PILOT:
+  With shared PIN auth, all doctors at the clinic see all patients.
+  Before onboarding any pilot clinic, inform them verbally:
+  "All doctors currently share one login and can see all patient
+  records. Individual doctor logins arrive in the next release."
+  Get verbal acknowledgment. This is acceptable for a controlled
+  2-3 doctor pilot. It is a hard blocker before any public deployment
+  under India's DPDP Act 2025 (data minimisation requirement).
+
+───────────────────────────────────────────────────────────────────
+TASK BREAKDOWN
+───────────────────────────────────────────────────────────────────
+
+S9-0 | PATIENT MODEL ENRICHMENT + DEDUPLICATION (Backend)
+──────────────────────────────────────────────────────────
+Extend the existing patients table with fields needed for a real
+patient directory. No breaking changes — all new columns nullable.
+
+Add to Patient model:
+  - blood_group: str (nullable)              e.g. "B+"
+  - known_allergies: list[str] JSONB         e.g. ["Penicillin", "Sulfa"]
+  - chronic_conditions: list[str] JSONB      e.g. ["Type 2 Diabetes", "HTN"]
+  - address: str (nullable)
+  - emergency_contact: str (nullable)
+  - notes: str (nullable)                    free-text doctor notes on patient
+  - abha_id: str (nullable, already exists)  capture as free text, no NHA
+                                             validation yet. Label clearly in UI:
+                                             "ABHA ID (optional) — from
+                                             Ayushman Bharat card"
+
+DEDUPLICATION LOGIC:
+  Match criteria: name (case-insensitive) + age as composite unique key.
+  Age tolerance is age-dependent:
+
+  ```python
+  def age_matches(stored_age: int, new_age: int) -> bool:
+      if stored_age < 12:
+          return stored_age == new_age  # exact for children — paediatric
+      return abs(stored_age - new_age) <= 1  # ±1 tolerance for adults
+  ```
+
+  Why ±1 for adults only: an adult patient returning after 13 months
+  has likely had a birthday. A 6-year-old "Arjun" and a 7-year-old
+  "Arjun" are genuinely two different children in the same paediatric
+  clinic — ±1 would wrongly merge them.
+
+  Dedup flow on POST /api/sessions:
+    1. Normalize name: strip whitespace, lowercase for comparison
+    2. Pre-check: SELECT existing patient WHERE lower(name)=lower(:name)
+    3. For each match, run age_matches(existing.age, new_age)
+    4. If match found → link session.patient_id to existing patient
+    5. If no match → INSERT new patient row (DB unique index as safety net)
+
+  Phone as optional tiebreaker:
+    If name + age matches multiple records (rare but possible), and the
+    doctor provides a phone number that matches exactly one record, use
+    phone as the tiebreaker. Otherwise take the most recent match.
+    Show a prompt in NewSession UI: "Adding phone helps avoid duplicate
+    records." Do NOT make phone mandatory.
+
+  🔴 RACE CONDITION FIX — DB-level unique index:
+    Application-level check-then-insert has a race condition under
+    concurrent requests (two sessions for "Khushi, 22" submitted
+    simultaneously both pass the check and both create a new row).
+    Protect with a PostgreSQL partial unique index:
+
+    Migration:
+      CREATE UNIQUE INDEX patients_name_age_unique
+      ON patients (LOWER(name), age);
+
+    Session creation uses upsert (INSERT ... ON CONFLICT DO NOTHING)
+    so a concurrent duplicate insert silently resolves to the existing
+    row rather than throwing a 500.
+
+    Note: the ±1 age tolerance logic stays in application code as a
+    pre-check. The unique index is only the race-condition safety net
+    for exact (name, age) duplicates.
+
+Endpoint changes:
+  PATCH /api/patients/:id  — update patient profile fields
+                           — ALSO invalidate Redis analysis cache:
+                             await redis.delete(f"patient_analysis:{id}")
+  GET  /api/patients       — list all patients with visit_count aggregated:
+                             SELECT p.*, COUNT(s.id) as visit_count
+                             FROM patients p
+                             LEFT JOIN sessions s ON s.patient_id = p.id
+                             GROUP BY p.id
+                             (without this, frontend shows "0 visits" for all)
+  GET  /api/patients/:id   — full patient profile + session list
+  POST /api/patients       — create patient manually
+
+
+S9-1 | PATIENT DIRECTORY PAGE (Frontend)
+──────────────────────────────────────────
+New page: /patients
+
+A searchable, sortable list of all patients the clinic has seen.
+
+UI Components:
+  - Search bar: client-side filter, minimum 3 characters before filtering,
+    300ms debounce before query fires (prevents "A" returning every Ananya,
+    Amit, Arjun, Ankoor in the DB simultaneously)
+  - Patient cards (list view): name, age, gender, last visit date,
+    visit count badge (requires COUNT from endpoint — see S9-0 above)
+  - Sort options: Last seen, Name A-Z, Most visits
+  - Click patient → navigates to Patient Profile page (/patients/:id)
+  - "New Patient" button → opens inline form or modal
+
+State:
+  - useQuery(['patients'], GET /api/patients) with 60s staleTime
+  - Client-side filter on query result (no server search at this scale)
+
+Nav:
+  - Add "Patients" to AppShell sidebar between "Doctors" and "Analytics"
+  - Icon: Users (lucide-react)
+
+
+S9-2 | PATIENT PROFILE PAGE (Frontend)
+────────────────────────────────────────
+New page: /patients/:id
+
+Two-panel layout: Profile (left) + Visit Timeline (right).
+
+LEFT PANEL — Patient Profile Card:
+  - Name, Age, Gender, Blood Group
+  - ABHA ID (if set, display; if not, show "—" with an edit prompt)
+  - Known Allergies (chips, teal background)
+  - Chronic Conditions (chips, amber background)
+  - Phone, Address, Emergency Contact
+  - Edit button → inline edit mode
+    Save triggers PATCH /api/patients/:id
+    Use optimistic update: update UI immediately, revert on error.
+    Show an inline saving spinner per field — do NOT freeze the whole
+    panel for a 2s Fly.io cold-start round trip.
+  - "Start New Session" button → navigates to NewSession with patient
+    pre-filled (patient_id passed as query param)
+
+RIGHT PANEL — Visit Timeline:
+  - Chronological list of all sessions (newest first)
+  - Each visit card shows:
+      Date & time
+      Doctor name
+      Duration
+      Chief complaint (note.chief_complaint)
+      ICD-10 codes (chips)
+      Status badge: finalized / draft
+      "View Note →" link
+  - Empty state: "No visits yet"
+
+
+S9-3 | LONGITUDINAL HEALTH ANALYSIS (Backend + Frontend)
+──────────────────────────────────────────────────────────
+The centrepiece of Sprint 9.
+
+BACKEND — New endpoint:
+  GET /api/patients/:id/analysis
+
+  Logic:
+    1. Fetch all finalized ClinicalNote records for this patient
+    2. If < 2 notes: return {"available": false, "reason": "min_visits"}
+    3. Sort notes chronologically
+    4. Build context string: for each note — date, chief_complaint,
+       assessment, plan, medications, physical_examination (for vitals)
+    5. Call MediScribe Clinical AI (Perplexity sonar-reasoning-pro):
+
+    SYSTEM:
+      "You are a clinical intelligence assistant reviewing a patient's
+      longitudinal medical history. Analyze all visits and generate a
+      structured health summary. Be concise, clinical, and factual.
+      Only draw conclusions directly supported by the note content.
+      Return valid JSON only — no markdown, no explanation outside JSON."
+
+    USER:
+      "Patient: {name}, {age}y, {gender}
+
+       Visit history ({n} visits):
+       {formatted visit summaries}
+
+       Generate a JSON response with exactly these keys:
+       {
+         'health_trajectory': '2-3 sentences on overall health trend',
+         'active_conditions': ['condition1', 'condition2'],
+         'resolved_conditions': ['condition1'],
+         'medication_history': [
+           {
+             'drug': '',
+             'first_prescribed': 'DD Mon YYYY',
+             'last_seen': 'DD Mon YYYY',
+             'status': 'ongoing|stopped'
+           }
+         ],
+         'recurring_complaints': ['complaint1', 'complaint2'],
+         'risk_flags': ['flag1', 'flag2'],
+         'key_events': [{'date': 'DD Mon YYYY', 'event': ''}],
+         'last_vitals': {'bp': '', 'weight': '', 'spo2': '', 'temp': ''},
+         'surgical_history': ['procedure1'],
+         'vaccination_status': '',
+         'doctor_notes_summary': '1-2 sentences of key clinical observations',
+         'data_confidence': 'high|medium|low',
+         'confidence_reason': 'e.g. Based on 2 short sessions'
+       }"
+
+  🔴 THINK TOKEN STRIPPING — sonar-reasoning-pro emits <think>...</think>
+    chain-of-thought tokens before the JSON. Strip them before json.loads():
+
+    ```python
+    import re
+
+    def extract_json(text: str) -> str:
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        return match.group(0) if match else text
+    ```
+
+    Apply this to the raw LLM response before parsing.
+    Same pattern already used in note_generator.py — reuse it.
+
+  Caching:
+    Cache result in Redis: key = patient_analysis:{patient_id}, TTL = 1hr
+    Invalidate on:
+      1. New note finalized for this patient (in notes.py finalize endpoint)
+      2. Patient profile PATCH (in patients.py PATCH endpoint)
+         Both: await redis.delete(f"patient_analysis:{patient_id}")
+
+  Timeout: 90 seconds (not 45 — context grows linearly with visit count;
+    a patient with 10 visits has ~3x the token context of single-note gen)
+
+  Failure handling — explicit fallback states:
+    a) LLM timeout (90s exceeded):
+         return {"available": false, "reason": "timeout"}
+    b) JSON parse failure (malformed response after think-token strip):
+         return {"available": false, "reason": "parse_error",
+                 "raw": first_500_chars_of_response}
+    c) < 2 finalized notes:
+         return {"available": false, "reason": "min_visits"}
+    d) All failures: log error, do NOT expose to doctor UI as a crash.
+
+FRONTEND — Analysis Panel (on Patient Profile page):
+  Below the Visit Timeline, collapsible "Health Intelligence" section.
+
+  Gate: only show "Generate Analysis" button if >= 2 finalized notes.
+  If < 2: show grey panel — "Complete at least 2 sessions to unlock
+  health intelligence." Do NOT show the button at all.
+
+  Loading states:
+    0–20s:   "Analysing {n} visits…" + spinner
+    20s+:    "Analysis is taking longer than usual — large patient
+              history. Still working…"
+    Timeout: "Analysis unavailable right now. Try again." + Retry button
+
+  If cached: show immediately with "Last generated: X min ago" stamp.
+
+  Rendered output:
+    DATA CONFIDENCE badge — green (high) / amber (medium) / red (low)
+      with confidence_reason as tooltip. Doctors must know when AI is
+      drawing conclusions from sparse data.
+
+    HEALTH TRAJECTORY — paragraph text
+
+    ACTIVE CONDITIONS — teal chips
+    RESOLVED CONDITIONS — grey chips (strikethrough style)
+    SURGICAL HISTORY — grey chips (if any)
+
+    RECURRING COMPLAINTS — amber chips
+    RISK FLAGS — red warning chips (if any)
+
+    LAST VITALS — small card: BP | Weight | SpO2 | Temp
+      (from most recent note that had vitals documented)
+
+    MEDICATION HISTORY — table: Drug | First Prescribed | Last Seen | Status
+      Ongoing meds highlighted in teal. Stopped meds in grey.
+
+    KEY EVENTS — mini timeline (date + event)
+
+    DOCTOR NOTES SUMMARY — italic quote block
+
+  On any failure state (timeout, parse error): show grey panel with
+  "Analysis unavailable" message + Retry button. Never crash the page.
+  Never show raw LLM output or stack trace to the doctor.
+
+
+S9-4 | NEW SESSION FLOW UPDATE (Frontend)
+──────────────────────────────────────────
+Update NewSession to support patient selection and linking.
+
+Current: doctor types patient name as free text
+New:
+  - PatientSearchInput component:
+      Min 3 characters before search fires (300ms debounce)
+      Queries GET /api/patients?q={name} (server-side search by name)
+      Shows matching patients as dropdown: "Khushi, 22y — last seen 3 May"
+      Option at bottom: "+ Create new patient: [typed name]"
+  - On existing patient selected:
+      age, gender pre-fill from patient record (read-only, greyed out)
+      "View history →" link appears (opens patient profile in new tab)
+      Session creation sends patient_id
+  - On "Create new patient":
+      age and gender fields become required inputs
+      Optional: phone, ABHA ID
+      Session creation creates new patient row then links session
+
+  Phone field: optional, shown with prompt: "Adding phone helps prevent
+  duplicate records for patients with common names."
+
+  ABHA ID field: optional, labelled "ABHA ID (Ayushman Bharat card)"
+
+
+S9-5 | DIARIZATION FLIP (Frontend + Backend)
+─────────────────────────────────────────────
+Two flip paths — live (Redis) and post-session (PostgreSQL bulk).
+
+PATH A — LIVE FLIP (during active recording):
+  In ActiveSession live view, show speaker assignment bar:
+    "Doctor: Speaker A  |  Patient: Speaker B  [Flip]"
+  On click: PATCH /api/sessions/:id/speaker-map { "flip": true }
+  Backend swaps doctor ↔ patient in Redis speaker map.
+  All subsequent chunks use corrected assignment.
+  Previously captured chunks in PostgreSQL are NOT changed by this path.
+  Button only visible during active recording. Disappears on stop.
+
+PATH B — END-OF-SESSION CONFIRMATION MODAL:
+  When doctor clicks "End Session", before navigating to note generation,
+  show a modal:
+    "Speaker labels
+     Doctor was: [Speaker A] — the first voice heard.
+     Is this correct?
+     [Yes, looks right]  [No, flip all labels]"
+
+  This is the highest-value correction moment — before the SOAP note
+  is generated from the transcript. Fixing labels here means the note
+  will be correct. Fixing after generation is too late.
+
+  On "No, flip all labels":
+    PATCH /api/sessions/:id/flip-all-speakers
+    Backend bulk-updates all PostgreSQL transcript rows:
+      UPDATE transcripts
+      SET speaker = CASE
+        WHEN speaker = 'doctor' THEN 'patient'
+        ELSE 'doctor'
+      END
+      WHERE session_id = :session_id
+    One SQL statement. Returns 200. Then proceeds to note generation.
+
+  Zero additional backend complexity — one endpoint, one UPDATE.
+
+PATH C — POST-SESSION FLIP (from TranscriptViewer):
+  On the transcript viewer page, add a "Flip all speaker labels" button
+  in the header (subtle, not prominent — for edge cases).
+  Calls the same PATCH /api/sessions/:id/flip-all-speakers endpoint.
+  Only available if session is completed (not during live recording).
+
+
+───────────────────────────────────────────────────────────────────
+DATABASE MIGRATIONS REQUIRED
+───────────────────────────────────────────────────────────────────
+1. ALTER TABLE patients ADD COLUMN blood_group VARCHAR(5)
+2. ALTER TABLE patients ADD COLUMN known_allergies JSONB DEFAULT '[]'
+3. ALTER TABLE patients ADD COLUMN chronic_conditions JSONB DEFAULT '[]'
+4. ALTER TABLE patients ADD COLUMN address TEXT
+5. ALTER TABLE patients ADD COLUMN emergency_contact VARCHAR(100)
+6. ALTER TABLE patients ADD COLUMN notes TEXT
+7. CREATE UNIQUE INDEX patients_name_age_unique ON patients (LOWER(name), age)
+
+All nullable / have defaults. Migration #7 will fail if duplicate
+(name, age) rows already exist in the DB — run a dedup cleanup first:
+  DELETE FROM patients p1 USING patients p2
+  WHERE p1.id > p2.id
+  AND LOWER(p1.name) = LOWER(p2.name)
+  AND p1.age = p2.age;
+
+
+───────────────────────────────────────────────────────────────────
+API SURFACE SUMMARY
+───────────────────────────────────────────────────────────────────
+NEW ENDPOINTS:
+  GET    /api/patients                      list + visit_count aggregation
+  GET    /api/patients?q={name}             search by name (min 3 chars)
+  GET    /api/patients/:id                  profile + visit list
+  PATCH  /api/patients/:id                  update profile + invalidate cache
+  POST   /api/patients                      create patient manually
+  GET    /api/patients/:id/analysis         AI longitudinal analysis
+  PATCH  /api/sessions/:id/speaker-map      live flip (Redis)
+  PATCH  /api/sessions/:id/flip-all-speakers  bulk flip (PostgreSQL)
+
+MODIFIED ENDPOINTS:
+  POST /api/sessions     — dedup logic + patient_id linking
+  POST /api/notes/:id/finalize  — invalidate patient_analysis cache
+
+
+───────────────────────────────────────────────────────────────────
+NEW FRONTEND PAGES / COMPONENTS
+───────────────────────────────────────────────────────────────────
+  /patients                     PatientDirectory.jsx
+  /patients/:id                 PatientProfile.jsx
+  PatientSearchInput.jsx         min-3-char search-as-you-type dropdown
+  HealthAnalysisPanel.jsx        collapsible AI analysis with fallback states
+  VisitTimeline.jsx              visit list with note links
+
+
+───────────────────────────────────────────────────────────────────
+WHAT THIS SPRINT DOES NOT INCLUDE
+───────────────────────────────────────────────────────────────────
+- Per-doctor login (Sprint 10 — full auth rewrite required)
+- Patient-facing portal
+- ABHA verification via NHA API (capture only, no verification)
+- Bulk patient import from CSV
+- Appointment scheduling
+- Retroactive note correction after wrong speaker labels (S9-5 covers
+  transcript correction; regenerating the note from corrected transcript
+  is a Sprint 10 feature)
+
+
+───────────────────────────────────────────────────────────────────
+ESTIMATED COMPLEXITY (post-vet)
+───────────────────────────────────────────────────────────────────
+S9-0  Patient model + dedup + race fix    Medium-High
+S9-1  Patient directory                   Low
+S9-2  Patient profile + optimistic edit   Medium
+S9-3  Longitudinal AI analysis            High (crown jewel)
+S9-4  NewSession patient search           Medium
+S9-5  Flip (3 paths)                      Low-Medium
+
+Total: One full sprint. S9-3 has explicit fallback states so it
+cannot become a demo-killer even if the LLM misbehaves.
+
+═══════════════════════════════════════════════════════════════════
+CHANGES FROM v1.0 (all Perplexity-directed fixes)
+═══════════════════════════════════════════════════════════════════
+🔴  Race condition fix: DB unique index + upsert (S9-0)
+🔴  Think-token stripping before json.loads() (S9-3)
+🟠  Paediatric age matching: exact match under 12 (S9-0)
+🟠  Full flip coverage: live + modal + post-session paths (S9-5)
+🟡  Analysis fallback states: 3 explicit failure modes (S9-3)
+🟡  Added last_vitals, surgical_history, vaccination_status,
+    data_confidence, confidence_reason to JSON schema (S9-3)
+🟡  Redis cache invalidation also on PATCH patient (S9-0 + S9-3)
+🟡  LLM timeout raised 45s → 90s, 20s frontend warning (S9-3)
+🟡  Patient search: 3 char min + 300ms debounce (S9-4)
+🟡  Visit count added to /api/patients via COUNT aggregation (S9-0)
+🟢  Session end speaker confirmation modal (S9-5)
+🟢  ABHA ID capture added to patient form (S9-4)
+🟢  Phone as optional dedup tiebreaker (S9-0, S9-4)
+🟢  Privacy caveat for pilot clinic added to spec header
+═══════════════════════════════════════════════════════════════════
+END OF SPRINT 9 SPEC v1.1
+═══════════════════════════════════════════════════════════════════

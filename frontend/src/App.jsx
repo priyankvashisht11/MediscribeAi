@@ -10,12 +10,14 @@ import SessionHistory from './pages/SessionHistory'
 import NotFound from './pages/NotFound'
 import PinGate from './pages/PinGate'
 
-const NoteReview       = lazy(() => import('./pages/NoteReview'))
-const TranscriptViewer = lazy(() => import('./pages/TranscriptViewer'))
-const DoctorsPage      = lazy(() => import('./pages/Doctors'))
-const Settings         = lazy(() => import('./pages/Settings'))
-const Analytics        = lazy(() => import('./pages/Analytics'))
-const Help             = lazy(() => import('./pages/Help'))
+const NoteReview        = lazy(() => import('./pages/NoteReview'))
+const TranscriptViewer  = lazy(() => import('./pages/TranscriptViewer'))
+const DoctorsPage       = lazy(() => import('./pages/Doctors'))
+const Settings          = lazy(() => import('./pages/Settings'))
+const Analytics         = lazy(() => import('./pages/Analytics'))
+const Help              = lazy(() => import('./pages/Help'))
+const PatientDirectory  = lazy(() => import('./pages/PatientDirectory'))
+const PatientProfile    = lazy(() => import('./pages/PatientProfile'))
 
 function PageLoader() {
   return (
@@ -80,6 +82,8 @@ export default function App() {
             <Route path="settings" element={<Suspense fallback={<PageLoader />}><Settings /></Suspense>} />
             <Route path="analytics" element={<Suspense fallback={<PageLoader />}><Analytics /></Suspense>} />
             <Route path="help" element={<Suspense fallback={<PageLoader />}><Help /></Suspense>} />
+            <Route path="patients" element={<Suspense fallback={<PageLoader />}><PatientDirectory /></Suspense>} />
+            <Route path="patients/:patientId" element={<Suspense fallback={<PageLoader />}><PatientProfile /></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

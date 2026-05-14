@@ -60,6 +60,10 @@ class SpeakerCorrectionRequest(BaseModel):
     speaker: str
 
 
+class FlipAllSpeakersRequest(BaseModel):
+    pass  # no body needed — flip doctor↔patient for the whole session
+
+
 def _build_response(s: Session, p: Patient | None) -> SessionResponse:
     duration = None
     if s.started_at and s.ended_at:
@@ -192,12 +196,59 @@ async def get_session(session_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @router.post("/", response_model=SessionResponse)
 async def create_session(body: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
-    patient = Patient(
-        id=uuid.uuid4(),
-        name=body.patient_name or "Anonymous Patient",
-        age=body.patient_age,
-    )
-    db.add(patient)
+    name = body.patient_name or "Anonymous Patient"
+    age = body.patient_age
+
+    # ── Patient dedup: name (case-insensitive) + age ───────────────────────────
+    # age < 12 → exact age match (a 6yo and 7yo "Arjun" are different patients)
+    # age >= 12 → ±1 year tolerance for birthday drift
+    patient = None
+    if age is not None:
+        if age < 12:
+            result = await db.execute(
+                select(Patient).where(
+                    func.lower(Patient.name) == name.lower(),
+                    Patient.age == age,
+                )
+            )
+        else:
+            result = await db.execute(
+                select(Patient).where(
+                    func.lower(Patient.name) == name.lower(),
+                    Patient.age >= age - 1,
+                    Patient.age <= age + 1,
+                )
+            )
+        patient = result.scalar_one_or_none()
+
+    if patient is None:
+        patient = Patient(id=uuid.uuid4(), name=name, age=age)
+        db.add(patient)
+        try:
+            await db.flush()
+        except Exception:
+            await db.rollback()
+            # Race condition — another request created the same patient; re-fetch
+            if age is not None and age < 12:
+                result = await db.execute(
+                    select(Patient).where(
+                        func.lower(Patient.name) == name.lower(),
+                        Patient.age == age,
+                    )
+                )
+            elif age is not None:
+                result = await db.execute(
+                    select(Patient).where(
+                        func.lower(Patient.name) == name.lower(),
+                        Patient.age >= age - 1,
+                        Patient.age <= age + 1,
+                    )
+                )
+            else:
+                result = await db.execute(
+                    select(Patient).where(func.lower(Patient.name) == name.lower())
+                )
+            patient = result.scalar_one()
 
     session = Session(
         id=uuid.uuid4(),
@@ -306,6 +357,33 @@ async def get_session_transcript(session_id: UUID, db: AsyncSession = Depends(ge
         .order_by(Transcript.start_time_ms.asc())
     )
     return result.scalars().all()
+
+
+@router.patch("/{session_id}/flip-all-speakers")
+async def flip_all_speakers(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Swap all doctor↔patient speaker labels for the entire session transcript."""
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    result = await db.execute(
+        select(Transcript).where(Transcript.session_id == session_id)
+    )
+    chunks = result.scalars().all()
+
+    flip = {"doctor": "patient", "patient": "doctor"}
+    updated = 0
+    for chunk in chunks:
+        new_speaker = flip.get(chunk.speaker, chunk.speaker)
+        if new_speaker != chunk.speaker:
+            chunk.speaker = new_speaker
+            updated += 1
+
+    await db.commit()
+    return {"session_id": str(session_id), "updated_chunks": updated}
 
 
 @router.patch("/{session_id}/transcript/{chunk_id}/speaker")

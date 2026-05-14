@@ -296,6 +296,16 @@ async def finalize_note(
     })
     await db.commit()
 
+    # Invalidate patient analysis cache so next GET recalculates
+    try:
+        session = await db.get(SessionModel, note.session_id)
+        if session and session.patient_id:
+            from app.services.redis_client import get_client
+            redis = get_client()
+            await redis.delete(f"patient_analysis:{session.patient_id}")
+    except Exception:
+        pass
+
     return {"status": "finalized", "note_id": str(note_id)}
 
 

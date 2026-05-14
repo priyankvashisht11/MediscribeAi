@@ -5,6 +5,7 @@ import { useDoctors } from '../context/DoctorsContext'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { Lock, Mic } from 'lucide-react'
+import PatientSearchInput from '../components/PatientSearchInput'
 import styles from './NewSession.module.css'
 
 const STEPS = ['Doctor', 'Patient & Consent', 'Start']
@@ -22,6 +23,7 @@ export default function NewSession() {
   const [patientAge, setPatientAge] = useState('')
   const [patientGender, setPatientGender] = useState('')
   const [patientPhone, setPatientPhone] = useState('')
+  const [selectedPatient, setSelectedPatient] = useState(null) // existing patient picked from search
   const [consented, setConsented] = useState(false)
   const [consentTimestamp, setConsentTimestamp] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -110,14 +112,33 @@ export default function NewSession() {
                 <label className={styles.label} htmlFor="patient-name">
                   Patient Name <span className={styles.required}>*</span>
                 </label>
-                <input
-                  id="patient-name"
-                  className={styles.input}
-                  type="text"
-                  placeholder="Full name"
+                <PatientSearchInput
                   value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
+                  onChange={(name, existing) => {
+                    setPatientName(name)
+                    if (existing) {
+                      setSelectedPatient(existing)
+                      if (existing.age != null) setPatientAge(String(existing.age))
+                      if (existing.gender) setPatientGender(existing.gender)
+                      if (existing.phone) setPatientPhone(existing.phone)
+                    } else {
+                      setSelectedPatient(null)
+                    }
+                  }}
+                  onSelect={(patient) => {
+                    setSelectedPatient(patient)
+                    setPatientAge(patient.age != null ? String(patient.age) : '')
+                    setPatientGender(patient.gender || '')
+                    setPatientPhone(patient.phone || '')
+                  }}
+                  placeholder="Full name (type 3+ chars to search)"
                 />
+                {selectedPatient && (
+                  <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-primary)',
+                               marginTop: 4 }}>
+                    ✓ Returning patient — record found ({selectedPatient.visit_count} previous visit{selectedPatient.visit_count !== 1 ? 's' : ''})
+                  </p>
+                )}
               </div>
               <div className={styles.field}>
                 <label className={styles.label} htmlFor="patient-age">Age</label>

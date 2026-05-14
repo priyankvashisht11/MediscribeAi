@@ -11,7 +11,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import AsyncSessionLocal, get_db, init_db
-from app.routers import analytics, auth, doctors, notes, sessions, ws
+from app.routers import analytics, auth, doctors, notes, patients, sessions, ws
 from app.routers.auth import verify_token
 from app.services import redis_client as redis_module
 
@@ -28,6 +28,28 @@ async def require_auth(
         raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 logger = logging.getLogger(__name__)
+
+
+async def _migrate_patient_columns() -> None:
+    """Add Sprint-9 columns to patients table if they don't exist yet."""
+    new_cols = [
+        ("blood_group",         "VARCHAR(5)"),
+        ("known_allergies",     "TEXT"),
+        ("chronic_conditions",  "TEXT"),
+        ("address",             "TEXT"),
+        ("emergency_contact",   "VARCHAR(100)"),
+        ("notes",               "TEXT"),
+    ]
+    async with AsyncSessionLocal() as db:
+        for col, col_type in new_cols:
+            try:
+                await db.execute(text(
+                    f"ALTER TABLE patients ADD COLUMN IF NOT EXISTS {col} {col_type}"
+                ))
+            except Exception as e:
+                logger.warning(f"[Migration] Could not add column {col}: {e}")
+        await db.commit()
+    print("[Startup] Patient column migration complete.", flush=True)
 
 
 async def _seed_mock_doctors() -> None:
@@ -56,6 +78,9 @@ async def _seed_mock_doctors() -> None:
 async def lifespan(app: FastAPI):
     # 1. Init database tables
     await init_db()
+
+    # 1b. Migrate new patient columns (Sprint 9 — ALTER TABLE IF NOT EXISTS)
+    await _migrate_patient_columns()
 
     # 2. Seed mock doctors
     await _seed_mock_doctors()
@@ -107,6 +132,7 @@ app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"]
 app.include_router(sessions.router, prefix="/api/sessions", tags=["Sessions"], dependencies=[Depends(require_auth)])
 app.include_router(notes.router, prefix="/api/notes", tags=["Notes"], dependencies=[Depends(require_auth)])
 app.include_router(doctors.router, prefix="/api/doctors", tags=["Doctors"], dependencies=[Depends(require_auth)])
+app.include_router(patients.router, prefix="/api/patients", tags=["Patients"], dependencies=[Depends(require_auth)])
 app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])  # WS auth via ?token= query param
 
 
