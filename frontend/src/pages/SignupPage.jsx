@@ -68,7 +68,7 @@ export default function SignupPage({ onSuccess }) {
             <input
               className={styles.input}
               type="text"
-              placeholder={plan === 'solo' ? 'Dr. Sharma's Practice' : 'City Clinic'}
+              placeholder={plan === 'solo' ? "Dr. Sharma's Practice" : 'City Clinic'}
               value={form.clinic_name}
               onChange={set('clinic_name')}
               required
