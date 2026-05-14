@@ -12,6 +12,8 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import JoinClinicPage from './pages/JoinClinicPage'
 import SetupPasswordPage from './pages/SetupPasswordPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import { authApi } from './services/api'
 import { useDoctorStore } from './stores/doctorStore'
 
@@ -113,6 +115,8 @@ export default function App() {
           <Route path="/signup" element={<SignupPage onSuccess={onSuccess} />} />
           <Route path="/join" element={<JoinClinicPage onSuccess={onSuccess} />} />
           <Route path="/setup-password" element={<SetupPasswordPage onSuccess={onSuccess} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage onSuccess={onSuccess} />} />
           <Route path="*" element={<LoginPage onSuccess={onSuccess} />} />
         </Routes>
       </BrowserRouter>

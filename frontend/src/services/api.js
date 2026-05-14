@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { useUiStore } from '../stores/uiStore'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
@@ -7,8 +6,6 @@ const api = axios.create({
 })
 
 api.interceptors.request.use(config => {
-  const doctorId = useUiStore.getState().activeDoctorId
-  if (doctorId) config.headers['X-Doctor-Id'] = doctorId
   const token = localStorage.getItem('mediscribe_token')
   if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
@@ -59,6 +56,10 @@ export const authApi = {
   setupPassword: (setupToken, newPassword) =>
     api.post('/api/auth/setup-password', { setup_token: setupToken, new_password: newPassword }).then((r) => r.data),
   createClinic: (body) => api.post('/api/clinics/', body).then((r) => r.data),
+  forgotPassword: (email) =>
+    api.post('/api/auth/forgot-password', { email }).then((r) => r.data),
+  resetPassword: (resetToken, newPassword) =>
+    api.post('/api/auth/reset-password', { reset_token: resetToken, new_password: newPassword }).then((r) => r.data),
 }
 
 export default api

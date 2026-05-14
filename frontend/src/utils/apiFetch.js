@@ -1,15 +1,11 @@
-import { useUiStore } from '../stores/uiStore'
-
 export function authHeader() {
   const token = localStorage.getItem('mediscribe_token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 export function apiFetch(url, options = {}) {
-  const activeDoctorId = useUiStore.getState().activeDoctorId
   const headers = {
     'Content-Type': 'application/json',
-    ...(activeDoctorId ? { 'X-Doctor-Id': activeDoctorId } : {}),
     ...(options.headers ?? {}),
   }
   const token = localStorage.getItem('mediscribe_token')

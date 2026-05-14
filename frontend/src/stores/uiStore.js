@@ -4,10 +4,8 @@ export const useUiStore = create((set) => ({
   sidebarOpen: true,
   theme: 'light',
   toasts: [],
-  activeDoctorId: null,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setActiveDoctorId: (id) => set({ activeDoctorId: id }),
   setTheme: (theme) => {
     document.documentElement.setAttribute('data-theme', theme)
     set({ theme })

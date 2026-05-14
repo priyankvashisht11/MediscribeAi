@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -32,18 +32,6 @@ class AuditLogEntry(BaseModel):
 
     class Config:
         from_attributes = True
-
-
-# ── Auth stub ──────────────────────────────────────────────────────────────────
-
-def get_current_doctor_id(x_doctor_id: str | None = Header(default=None)) -> UUID | None:
-    """POC-grade identity: reads X-Doctor-Id request header. Not production auth."""
-    if not x_doctor_id:
-        return None
-    try:
-        return UUID(x_doctor_id)
-    except (ValueError, AttributeError):
-        return None
 
 
 def _get_clinic_id(request: Request):
@@ -149,7 +137,6 @@ async def trigger_note_generation(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    doctor_id: UUID | None = Depends(get_current_doctor_id),
 ):
     """
     Trigger SOAP note generation for a session.
@@ -157,6 +144,7 @@ async def trigger_note_generation(
     Called when note status is 'not_started' (e.g. from useNote hook).
     """
     await _verify_session_clinic(session_id, _get_clinic_id(request), db)
+    doctor_id = getattr(request.state, "doctor_id", None)
     result = await db.execute(
         select(ClinicalNote).where(ClinicalNote.session_id == session_id)
     )
@@ -280,9 +268,9 @@ async def update_note(
     body: dict,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    doctor_id: UUID | None = Depends(get_current_doctor_id),
 ):
     """Update SOAP note fields (doctor edits in NoteReview page)."""
+    doctor_id = getattr(request.state, "doctor_id", None)
     note = await _verify_note_clinic(note_id, _get_clinic_id(request), db)
 
     editable_fields = ["subjective", "objective", "assessment", "plan", "chief_complaint"]
@@ -307,9 +295,9 @@ async def finalize_note(
     note_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-    doctor_id: UUID | None = Depends(get_current_doctor_id),
 ):
     """Mark note as finalized (signed off by doctor). Returns 400 if already finalized."""
+    doctor_id = getattr(request.state, "doctor_id", None)
     note = await _verify_note_clinic(note_id, _get_clinic_id(request), db)
     if note.is_finalized:
         raise HTTPException(status_code=400, detail="Note already finalized")

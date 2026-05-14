@@ -58,5 +58,13 @@ class Settings(BaseSettings):
     # Seconds of session audio used to determine doctor vs patient.
     # After this window the assignment is fixed for the rest of the session.
 
+    # ── Email (password reset) ─────────────────────────────────────────────────
+    resend_api_key: str = ""
+    # Get from: https://resend.com → API Keys
+    # Set via: flyctl secrets set RESEND_API_KEY=re_... --app mediscribe-api
+
+    from_email: str = "noreply@mediscribe.in"
+    # Must be a verified sender domain in Resend
+
 
 settings = Settings()

@@ -2,7 +2,6 @@
 
 import random
 import string
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -20,20 +19,25 @@ from app.models.clinic import Clinic, ClinicInvite
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ── In-memory rate limiter for POST /api/clinics/ (no auth endpoint) ──────────
-_signup_attempts: dict[str, list[datetime]] = defaultdict(list)
 
-
-def _check_signup_rate(ip: str) -> None:
-    now = datetime.utcnow()
-    window_start = now - timedelta(minutes=10)
-    _signup_attempts[ip] = [t for t in _signup_attempts[ip] if t > window_start]
-    if len(_signup_attempts[ip]) >= 3:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many signup attempts. Please wait 10 minutes.",
-        )
-    _signup_attempts[ip].append(now)
+async def _check_signup_rate(ip: str) -> None:
+    """Rate limit clinic signups: 3 attempts per 10-minute window, keyed by IP in Redis."""
+    from app.services.redis_client import get_client
+    try:
+        redis = get_client()
+        key = f"signup_rate:{ip}"
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, 600)  # 10 minutes
+        if count > 3:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many signup attempts. Please wait 10 minutes.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Redis unavailable — fail open (don't block signups)
 
 
 def _gen_invite_code() -> str:
@@ -84,7 +88,7 @@ async def create_clinic(
     db: AsyncSession = Depends(get_db),
 ):
     """Self-serve clinic signup. Rate-limited. No auth required."""
-    _check_signup_rate(request.client.host)
+    await _check_signup_rate(request.client.host)
     _validate_password(body.admin_password)
 
     name_stripped = body.clinic_name.strip()

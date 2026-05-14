@@ -46,6 +46,20 @@ def _make_doctor_token(doctor: Doctor) -> str:
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
 
 
+def _make_reset_token(doctor: Doctor) -> str:
+    """Short-lived JWT for password reset links — expires in 1 hour."""
+    if not settings.secret_key:
+        raise RuntimeError("SECRET_KEY is not configured.")
+    exp = datetime.now(timezone.utc) + timedelta(hours=1)
+    payload = {
+        "sub":       str(doctor.id),
+        "doctor_id": str(doctor.id),
+        "purpose":   "password_reset",
+        "exp":       exp,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
+
+
 def _make_pin_token() -> str:
     """Legacy PIN-mode token — doctor_id and clinic_id are null (no scoping)."""
     if not settings.secret_key:
@@ -106,6 +120,15 @@ class RegisterRequest(BaseModel):
 
 class SetupPasswordRequest(BaseModel):
     setup_token: str
+    new_password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
     new_password: str
 
 
@@ -248,6 +271,55 @@ async def setup_password(body: SetupPasswordRequest, db: AsyncSession = Depends(
     doctor = await db.get(Doctor, UUID(doctor_id))
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
+
+    doctor.hashed_password = pwd_context.hash(body.new_password)
+    await db.commit()
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Initiate password reset flow. Always returns 200 to prevent email enumeration.
+    Sends a reset link to the registered email if the account exists.
+    """
+    from app.services.email_service import send_password_reset_email
+
+    email = body.email.lower().strip()
+    result = await db.execute(
+        select(Doctor).where(func.lower(Doctor.email) == email)
+    )
+    doctor = result.scalar_one_or_none()
+
+    # Always return success — do not reveal whether the email is registered
+    if doctor and doctor.is_active and settings.secret_key:
+        token = _make_reset_token(doctor)
+        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        await send_password_reset_email(
+            to_email=doctor.email,
+            reset_url=reset_url,
+            doctor_name=doctor.name or "Doctor",
+        )
+
+    return {"detail": "If that email is registered, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Complete password reset using the token from the reset email."""
+    _validate_password(body.new_password)
+
+    claims = decode_token(body.reset_token)
+    if not claims or claims.get("purpose") != "password_reset":
+        raise HTTPException(status_code=401, detail="Invalid or expired reset link")
+
+    doctor_id = claims.get("doctor_id")
+    if not doctor_id:
+        raise HTTPException(status_code=401, detail="Invalid reset token")
+
+    doctor = await db.get(Doctor, UUID(doctor_id))
+    if not doctor or not doctor.is_active:
+        raise HTTPException(status_code=404, detail="Account not found")
 
     doctor.hashed_password = pwd_context.hash(body.new_password)
     await db.commit()

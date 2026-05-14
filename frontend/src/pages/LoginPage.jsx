@@ -57,7 +57,17 @@ export default function LoginPage({ onSuccess }) {
           </div>
 
           <div className={styles.fieldGroup}>
-            <label className={styles.label}>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label className={styles.label}>Password</label>
+              <button
+                type="button"
+                className={styles.link}
+                style={{ fontSize: 'var(--text-xs)' }}
+                onClick={() => navigate('/forgot-password')}
+              >
+                Forgot password?
+              </button>
+            </div>
             <input
               className={styles.input}
               type="password"
