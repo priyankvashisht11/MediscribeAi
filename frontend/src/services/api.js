@@ -1,8 +1,11 @@
 import axios from 'axios'
 
+const BASE = import.meta.env.VITE_API_URL || ''
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '',
+  baseURL: BASE,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,  // send httpOnly refresh cookie on every request
 })
 
 api.interceptors.request.use(config => {
@@ -11,14 +14,62 @@ api.interceptors.request.use(config => {
   return config
 })
 
+let _refreshing = false
+let _refreshQueue = []
+
+const _flushQueue = (token, error) => {
+  _refreshQueue.forEach(cb => cb(token, error))
+  _refreshQueue = []
+}
+
 api.interceptors.response.use(
   res => res,
-  err => {
-    if (err.response?.status === 401) {
+  async err => {
+    const original = err.config
+    if (err.response?.status !== 401 || original._retried) {
+      return Promise.reject(err)
+    }
+    // Skip refresh for auth endpoints themselves to avoid infinite loops
+    if (original.url?.includes('/api/auth/')) {
       localStorage.removeItem('mediscribe_token')
       window.dispatchEvent(new Event('mediscribe_auth_change'))
+      return Promise.reject(err)
     }
-    return Promise.reject(err)
+
+    if (_refreshing) {
+      // Queue subsequent 401s while refresh is in flight
+      return new Promise((resolve, reject) => {
+        _refreshQueue.push((token, error) => {
+          if (error) return reject(error)
+          original.headers['Authorization'] = `Bearer ${token}`
+          resolve(api(original))
+        })
+      })
+    }
+
+    _refreshing = true
+    original._retried = true
+
+    try {
+      const { data } = await axios.post(
+        `${BASE}/api/auth/refresh`,
+        {},
+        { withCredentials: true }
+      )
+      const newToken = data.token
+      localStorage.setItem('mediscribe_token', newToken)
+      api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+      original.headers['Authorization'] = `Bearer ${newToken}`
+      _flushQueue(newToken, null)
+      return api(original)
+    } catch {
+      _flushQueue(null, err)
+      localStorage.removeItem('mediscribe_token')
+      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      return Promise.reject(err)
+    } finally {
+      _refreshing = false
+    }
   }
 )
 
@@ -60,6 +111,8 @@ export const authApi = {
     api.post('/api/auth/forgot-password', { email }).then((r) => r.data),
   resetPassword: (resetToken, newPassword) =>
     api.post('/api/auth/reset-password', { reset_token: resetToken, new_password: newPassword }).then((r) => r.data),
+  logout: () =>
+    api.post('/api/auth/logout').catch(() => {}),  // best-effort cookie clear
 }
 
 export default api

@@ -1,8 +1,13 @@
+import asyncio
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.pool import NullPool
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 engine = create_async_engine(
     settings.database_url,
@@ -22,10 +27,18 @@ class Base(DeclarativeBase):
     pass
 
 
-async def init_db() -> None:
-    """Create all tables on startup (dev convenience — migrations handle prod)."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+async def init_db(retries: int = 5, delay: float = 2.0) -> None:
+    """Create all tables on startup. Retries on transient pgbouncer/connection errors."""
+    for attempt in range(1, retries + 1):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            return
+        except Exception as e:
+            if attempt == retries:
+                raise
+            logger.warning("[DB] init_db attempt %d/%d failed: %s — retrying in %.0fs", attempt, retries, e, delay)
+            await asyncio.sleep(delay)
 
 
 async def get_db() -> AsyncSession:

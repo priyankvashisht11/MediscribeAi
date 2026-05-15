@@ -4,7 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -22,6 +22,7 @@ router = APIRouter()
 
 _ALGORITHM = "HS256"
 _TOKEN_TTL_HOURS = 24
+_REFRESH_TTL_DAYS = 7
 _PWD_RE = re.compile(r'^(?=.*[a-zA-Z])(?=.*\d).{8,}$')
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -58,6 +59,37 @@ def _make_reset_token(doctor: Doctor) -> str:
         "exp":       exp,
     }
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
+
+
+def _make_refresh_token(doctor: Doctor) -> str:
+    """7-day refresh JWT — stored in httpOnly cookie, never in localStorage."""
+    if not settings.secret_key:
+        raise RuntimeError("SECRET_KEY is not configured.")
+    exp = datetime.now(timezone.utc) + timedelta(days=_REFRESH_TTL_DAYS)
+    payload = {
+        "sub":       str(doctor.id),
+        "doctor_id": str(doctor.id),
+        "purpose":   "refresh",
+        "exp":       exp,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    """Attach refresh token as httpOnly Secure SameSite=None cookie."""
+    response.set_cookie(
+        key="refresh_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=_REFRESH_TTL_DAYS * 24 * 3600,
+        path="/api/auth/refresh",
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key="refresh_token", path="/api/auth/refresh", samesite="none", secure=True)
 
 
 def _make_pin_token() -> str:
@@ -143,14 +175,13 @@ async def verify_pin(body: PinRequest):
 
 
 @router.post("/login")
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
     email = body.email.lower().strip()
     result = await db.execute(
         select(Doctor).where(func.lower(Doctor.email) == email)
     )
     doctor = result.scalar_one_or_none()
 
-    # Same error message for wrong email and wrong password — prevent enumeration
     _BAD_CREDS = "Invalid credentials"
 
     if not doctor:
@@ -162,6 +193,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not pwd_context.verify(body.password, doctor.hashed_password):
         raise HTTPException(status_code=401, detail=_BAD_CREDS)
 
+    _set_refresh_cookie(response, _make_refresh_token(doctor))
     return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
 
 
@@ -208,7 +240,7 @@ async def get_me(
 
 
 @router.post("/register")
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Invite-code-based registration for joining an existing clinic."""
     from datetime import timezone as tz
     from app.models.clinic import ClinicInvite
@@ -252,11 +284,12 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(doctor)
 
+    _set_refresh_cookie(response, _make_refresh_token(doctor))
     return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
 
 
 @router.post("/setup-password")
-async def setup_password(body: SetupPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def setup_password(body: SetupPasswordRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Allow a doctor with null hashed_password to set their password via a setup token."""
     _validate_password(body.new_password)
 
@@ -274,16 +307,31 @@ async def setup_password(body: SetupPasswordRequest, db: AsyncSession = Depends(
 
     doctor.hashed_password = pwd_context.hash(body.new_password)
     await db.commit()
+    _set_refresh_cookie(response, _make_refresh_token(doctor))
     return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password(body: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Initiate password reset flow. Always returns 200 to prevent email enumeration.
-    Sends a reset link to the registered email if the account exists.
+    Rate-limited: 5 requests/hr/IP via Redis. Returns same 200 even when limited.
     """
     from app.services.email_service import send_password_reset_email
+
+    # Rate limit — silent 200 (not 429) to avoid timing-based email enumeration
+    try:
+        from app.services.redis_client import get_client
+        redis = get_client()
+        ip = request.client.host
+        key = f"forgot_pw_rate:{ip}"
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, 3600)
+        if count > 5:
+            return {"detail": "If that email is registered, a reset link has been sent."}
+    except Exception:
+        pass  # Redis unavailable — fail open
 
     email = body.email.lower().strip()
     result = await db.execute(
@@ -323,4 +371,41 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
 
     doctor.hashed_password = pwd_context.hash(body.new_password)
     await db.commit()
+    _set_refresh_cookie(response, _make_refresh_token(doctor))
     return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+
+
+@router.post("/refresh")
+async def refresh_token(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    """
+    Issue a new 24h access token using the httpOnly refresh cookie.
+    Also rotates the refresh cookie (new 7-day window).
+    """
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    claims = decode_token(token)
+    if not claims or claims.get("purpose") != "refresh":
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    doctor_id = claims.get("doctor_id")
+    if not doctor_id:
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    doctor = await db.get(Doctor, UUID(doctor_id))
+    if not doctor or not doctor.is_active:
+        _clear_refresh_cookie(response)
+        raise HTTPException(status_code=401, detail="Account not found or disabled")
+
+    _set_refresh_cookie(response, _make_refresh_token(doctor))
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Clear the refresh cookie."""
+    _clear_refresh_cookie(response)
+    return {"detail": "Logged out"}

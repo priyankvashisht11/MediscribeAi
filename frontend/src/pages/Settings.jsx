@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { LogOut } from 'lucide-react'
 import { useDoctorStore } from '../stores/doctorStore'
 import { authHeader } from '../utils/apiFetch'
+import { authApi } from '../services/api'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -14,7 +15,8 @@ function getInitials(name = '') {
     .join('')
 }
 
-function logout() {
+async function logout() {
+  await authApi.logout()  // clears httpOnly refresh cookie server-side
   localStorage.removeItem('mediscribe_token')
   useDoctorStore.getState().clearDoctor()
   window.dispatchEvent(new Event('mediscribe_auth_change'))
