@@ -20,11 +20,11 @@ jobs:
         uses: actions/checkout@v4
 
       # ── 2. Java 17 ───────────────────────────────────────────────────
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       # ── 3. Install Android SDK 36 + build-tools ───────────────────────
       # ubuntu-latest has Android SDK pre-installed but only up to SDK 34.
