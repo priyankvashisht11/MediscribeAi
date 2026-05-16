@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useNote } from '../hooks/useNote'
 import { useUiStore } from '../stores/uiStore'
-import { apiFetch, authHeader } from '../utils/apiFetch'
-import { ChevronDown, ArrowLeft, CheckCircle, FileDown } from 'lucide-react'
+import { apiFetch } from '../utils/apiFetch'
+import { ChevronDown, ArrowLeft, CheckCircle, Share2 } from 'lucide-react'
+import { sharePdf } from '../utils/nativeShare'
 import styles from './MobileNoteReview.module.css'
 
 const BASE = import.meta.env.VITE_API_URL || ''
@@ -171,15 +172,8 @@ export default function MobileNoteReview() {
       const res = await apiFetch(`/api/notes/${noteId}/${endpoint}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      addToast({ type: 'success', message: `${label} downloaded` })
+      await sharePdf(blob, filename)
+      addToast({ type: 'success', message: `${label} ready` })
     } catch (e) {
       addToast({ type: 'error', message: `${label} failed: ${e.message}` })
     } finally {
@@ -301,21 +295,21 @@ export default function MobileNoteReview() {
             onClick={() => _downloadPdf('export/pdf', `note_${noteId?.slice(0,8)}.pdf`, setPdfLoading, 'SOAP PDF')}
             disabled={!noteId || pdfLoading}
           >
-            <FileDown size={14} /> {pdfLoading ? '…' : 'SOAP PDF'}
+            <Share2 size={14} /> {pdfLoading ? '…' : 'SOAP PDF'}
           </button>
           <button
             className={styles.dlBtn}
             onClick={() => _downloadPdf('prescription', `rx_${noteId?.slice(0,8)}.pdf`, setPrescLoading, 'Prescription')}
             disabled={!noteId || prescLoading}
           >
-            <FileDown size={14} /> {prescLoading ? '…' : 'Prescription'}
+            <Share2 size={14} /> {prescLoading ? '…' : 'Prescription'}
           </button>
           <button
             className={styles.dlBtn}
             onClick={() => _downloadPdf('instructions', `instr_${noteId?.slice(0,8)}.pdf`, setInstrLoading, 'Patient Sheet')}
             disabled={!noteId || instrLoading}
           >
-            <FileDown size={14} /> {instrLoading ? '…' : 'Patient Sheet'}
+            <Share2 size={14} /> {instrLoading ? '…' : 'Patient Sheet'}
           </button>
         </div>
 
