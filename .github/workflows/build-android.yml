@@ -1,0 +1,94 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - mediscribe-app
+  workflow_dispatch:  # lets you trigger manually from GitHub UI with one click
+
+jobs:
+  build:
+    name: Build Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Node.js (build React app) ─────────────────────────────────
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build React app (Vite)
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://mediscribe-api.fly.dev
+
+      # ── 3. Sync Capacitor → Android ──────────────────────────────────
+      - name: Sync Capacitor to Android
+        working-directory: frontend
+        run: npx cap sync android
+
+      # ── 4. Java 17 (Gradle requires it) ──────────────────────────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # ── 5. Android SDK ────────────────────────────────────────────────
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ── 6. Cache Gradle ───────────────────────────────────────────────
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # ── 7. Make gradlew executable ────────────────────────────────────
+      - name: Make gradlew executable
+        working-directory: frontend/android
+        run: chmod +x gradlew
+
+      # ── 8. Build debug APK ────────────────────────────────────────────
+      - name: Build Debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      # ── 9. Upload APK as downloadable artifact ────────────────────────
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediScribe-debug-${{ github.run_number }}
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      # ── 10. Comment on commit with download hint ──────────────────────
+      - name: Build summary
+        run: |
+          echo "## Android Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Debug APK built successfully**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**To install on your OnePlus:**" >> $GITHUB_STEP_SUMMARY
+          echo "1. Go to Actions tab → this run → Artifacts section" >> $GITHUB_STEP_SUMMARY
+          echo "2. Download \`MediScribe-debug-${{ github.run_number }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Unzip → send the .apk to your phone (WhatsApp, email, Drive)" >> $GITHUB_STEP_SUMMARY
+          echo "4. On phone: Settings → Install unknown apps → allow" >> $GITHUB_STEP_SUMMARY
+          echo "5. Tap the APK → Install → Open MediScribe 🚀" >> $GITHUB_STEP_SUMMARY
