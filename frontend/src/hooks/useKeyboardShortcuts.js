@@ -31,10 +31,10 @@ export function useKeyboardShortcuts() {
           }
           break
         case 'Escape':
-          window.dispatchEvent(new CustomEvent('mediscribe:escape'))
+          window.dispatchEvent(new CustomEvent('chartr:escape'))
           break
         case '?':
-          window.dispatchEvent(new CustomEvent('mediscribe:show-shortcuts'))
+          window.dispatchEvent(new CustomEvent('chartr:show-shortcuts'))
           break
       }
     }

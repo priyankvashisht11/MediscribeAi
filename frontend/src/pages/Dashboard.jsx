@@ -140,7 +140,7 @@ export default function Dashboard() {
               <path d="M32 18v28M18 32h28" stroke="var(--color-primary)" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
           </div>
-          <h1 className="first-run-title">Welcome to MediScribe</h1>
+          <h1 className="first-run-title">Welcome to Chartr</h1>
           <p className="first-run-desc">
             AI-assisted clinical documentation for Indian practitioners.
             Start your first session to begin.

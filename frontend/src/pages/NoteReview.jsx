@@ -188,7 +188,7 @@ export default function NoteReview() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `mediscribe_note_${noteId.slice(0, 8)}.pdf`
+      a.download = `chartr_note_${noteId.slice(0, 8)}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

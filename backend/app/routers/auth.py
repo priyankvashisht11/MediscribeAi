@@ -34,7 +34,7 @@ def _make_doctor_token(doctor: Doctor) -> str:
     if not settings.secret_key:
         raise RuntimeError(
             "SECRET_KEY is not configured. "
-            "Run: flyctl secrets set SECRET_KEY=$(openssl rand -hex 32) --app mediscribe-api"
+            "Run: flyctl secrets set SECRET_KEY=$(openssl rand -hex 32) --app chartr-api"
         )
     exp = datetime.now(timezone.utc) + timedelta(hours=_TOKEN_TTL_HOURS)
     payload = {

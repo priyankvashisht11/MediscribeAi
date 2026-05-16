@@ -1,0 +1,20 @@
+{
+	"appId": "app.chartr",
+	"appName": "Chartr",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https",
+		"cleartext": false
+	},
+	"android": {
+		"allowMixedContent": false,
+		"backgroundColor": "#016c72"
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"backgroundColor": "#016c72",
+			"showSpinner": false
+		}
+	}
+}

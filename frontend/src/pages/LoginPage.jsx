@@ -18,7 +18,7 @@ export default function LoginPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.login(email.trim(), password)
-      localStorage.setItem('mediscribe_token', token)
+      localStorage.setItem('chartr_token', token)
       // Hydrate doctor store immediately
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
@@ -37,7 +37,7 @@ export default function LoginPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={`${styles.card} ${shake ? styles.shake : ''}`}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Sign in to your account</p>
         </div>
 

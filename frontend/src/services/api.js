@@ -9,7 +9,7 @@ const api = axios.create({
 })
 
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('mediscribe_token')
+  const token = localStorage.getItem('chartr_token')
   if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
 })
@@ -31,8 +31,8 @@ api.interceptors.response.use(
     }
     // Skip refresh for auth endpoints themselves to avoid infinite loops
     if (original.url?.includes('/api/auth/')) {
-      localStorage.removeItem('mediscribe_token')
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      localStorage.removeItem('chartr_token')
+      window.dispatchEvent(new Event('chartr_auth_change'))
       return Promise.reject(err)
     }
 
@@ -57,15 +57,15 @@ api.interceptors.response.use(
         { withCredentials: true }
       )
       const newToken = data.token
-      localStorage.setItem('mediscribe_token', newToken)
+      localStorage.setItem('chartr_token', newToken)
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
       original.headers['Authorization'] = `Bearer ${newToken}`
       _flushQueue(newToken, null)
       return api(original)
     } catch {
       _flushQueue(null, err)
-      localStorage.removeItem('mediscribe_token')
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      localStorage.removeItem('chartr_token')
+      window.dispatchEvent(new Event('chartr_auth_change'))
       return Promise.reject(err)
     } finally {
       _refreshing = false

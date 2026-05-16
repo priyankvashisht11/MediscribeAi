@@ -1,4 +1,4 @@
-# MediScribe — Quick Reference Card
+# Chartr — Quick Reference Card
 
 ## What It Is
 AI ambient medical scribe. Listens to doctor-patient consultation → generates SOAP note + ICD-10 codes → PDF export. Zero typing.
@@ -7,10 +7,10 @@ AI ambient medical scribe. Listens to doctor-patient consultation → generates 
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| **App (Frontend)** | https://mediscribe-ai-eight.vercel.app | What doctors use |
-| **Backend API** | https://mediscribe-api.fly.dev | Business logic, AI orchestration |
-| **API Health Check** | https://mediscribe-api.fly.dev/health | Verify backend is awake |
-| **API Docs** | https://mediscribe-api.fly.dev/docs | Interactive Swagger UI |
+| **App (Frontend)** | https://chartr-ai-eight.vercel.app | What doctors use |
+| **Backend API** | https://chartr-api.fly.dev | Business logic, AI orchestration |
+| **API Health Check** | https://chartr-api.fly.dev/health | Verify backend is awake |
+| **API Docs** | https://chartr-api.fly.dev/docs | Interactive Swagger UI |
 
 ## Infrastructure At a Glance
 

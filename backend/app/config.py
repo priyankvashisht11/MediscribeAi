@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Database
-    database_url: str = "postgresql+asyncpg://mediscribe:mediscribe_dev_secret@db:5432/mediscribe_db"
+    database_url: str = "postgresql+asyncpg://chartr:chartr_dev_secret@db:5432/chartr_db"
 
     # Redis
     redis_url: str = "redis://redis:6379/0"
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # Sprint 10 auth
     seed_doctor_password: str = "demo1234"   # override via SEED_DOCTOR_PASSWORD env var
-    frontend_url: str = "https://mediscribe-ai-eight.vercel.app"
+    frontend_url: str = "https://chartr-ai-eight.vercel.app"
 
     # ── LLM / Note Generation ──────────────────────────────────────────────────
     # Perplexity (primary) — uses OpenAI-compatible API
@@ -43,13 +43,13 @@ class Settings(BaseSettings):
 
     # CORS — comma-separated list of allowed frontend origins
     # Dev default is localhost:3000. In production set to your Vercel URL.
-    # Example: ALLOWED_ORIGINS=https://mediscribe.vercel.app,https://mediscribe.yourdomain.com
+    # Example: ALLOWED_ORIGINS=https://chartr.vercel.app,https://chartr.yourdomain.com
     allowed_origins: str = "http://localhost:3000"
 
     # ── Access PIN gate ────────────────────────────────────────────────────────
     access_pin: str = ""
     # Empty string = gate disabled (dev default). Set via:
-    #   flyctl secrets set ACCESS_PIN="your_pin" --app mediscribe-api
+    #   flyctl secrets set ACCESS_PIN="your_pin" --app chartr-api
 
     max_concurrent_sessions: int = 5
     # POC hard limit: 5 simultaneous doctor sessions.
@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     # ── Email (password reset) ─────────────────────────────────────────────────
     resend_api_key: str = ""
     # Get from: https://resend.com → API Keys
-    # Set via: flyctl secrets set RESEND_API_KEY=re_... --app mediscribe-api
+    # Set via: flyctl secrets set RESEND_API_KEY=re_... --app chartr-api
 
-    from_email: str = "noreply@mediscribe.in"
+    from_email: str = "noreply@chartr.in"
     # Must be a verified sender domain in Resend
 
 

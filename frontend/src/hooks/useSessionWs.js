@@ -32,7 +32,7 @@ export function useSessionWs(sessionId) {
       ? apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws')
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
     // Browsers cannot send custom headers on WebSocket upgrades — pass JWT as query param
-    const token = localStorage.getItem('mediscribe_token')
+    const token = localStorage.getItem('chartr_token')
     const wsUrl = token
       ? `${base}/ws/session/${sessionId}?token=${encodeURIComponent(token)}`
       : `${base}/ws/session/${sessionId}`

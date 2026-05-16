@@ -1,5 +1,5 @@
 ═══════════════════════════════════════════════════════════════════
-HEYGEN VIDEO AGENT — MEDISCRIBE PITCH AD
+HEYGEN VIDEO AGENT — CHARTR PITCH AD
 ONE SHOT. MAKE IT COUNT.
 ═══════════════════════════════════════════════════════════════════
 
@@ -19,7 +19,7 @@ Music:    Subtle, modern, ambient underscore — builds toward the end
 VIDEO PROMPT (paste below into "Describe your video idea"):
 ───────────────────────────────────────────────────────────────────
 
-Create a cinematic 55-second advertisement video for MediScribe —
+Create a cinematic 55-second advertisement video for Chartr —
 an AI medical scribe built specifically for Indian doctors.
 
 TONE: Urgent, emotional, empowering. Like an Apple product launch
@@ -29,7 +29,7 @@ A declaration.
 VISUAL STYLE: Dark to light arc. Opens with heavy, tired clinical
 atmosphere — papers, pens, exhausted doctor. Ends with clean,
 bright, confident doctor fully present with their patient.
-Color grade: warm teal and white (MediScribe brand colors #01696f).
+Color grade: warm teal and white (Chartr brand colors #01696f).
 
 ---
 
@@ -62,10 +62,10 @@ What if you never wrote a clinical note again?"
 [12–18s] PRODUCT REVEAL — THE PIVOT
 Avatar back on screen. Background shifts — clinic but clean,
 bright. Avatar smiles with quiet confidence.
-MediScribe logo animates in — teal, minimal, modern.
+Chartr logo animates in — teal, minimal, modern.
 
 Voiceover:
-"Introducing MediScribe."
+"Introducing Chartr."
 
 Brief silence. Let it land.
 
@@ -79,7 +79,7 @@ B-roll placeholder slots (user will insert screen recordings here):
 
 Voiceover over the B-roll:
 "Just talk to your patient — like you always have.
-MediScribe listens. It knows your voice. It knows theirs.
+Chartr listens. It knows your voice. It knows theirs.
 
 The moment the consultation ends —
 your SOAP note is ready."
@@ -120,7 +120,7 @@ Text overlays animate one by one:
 ✓ Works on any device. Any browser. No installation.
 
 Voiceover:
-"MediScribe is live today.
+"Chartr is live today.
 Indian doctors. Indian accents. Mumbai servers.
 Your data stays here."
 
@@ -140,21 +140,21 @@ Start healing."
 ---
 
 [56–60s] LOGO END CARD
-MediScribe logo — full frame, teal on white.
+Chartr logo — full frame, teal on white.
 Tagline below: "The AI scribe built for India's doctors."
-URL: mediscribe-ai-eight.vercel.app
+URL: chartr-ai-eight.vercel.app
 Subtle fade out.
 
 Voiceover:
-"MediScribe. The AI scribe built for India's doctors."
+"Chartr. The AI scribe built for India's doctors."
 
 ───────────────────────────────────────────────────────────────────
-WHAT MEDISCRIBE ACTUALLY DOES (for HeyGen context accuracy):
+WHAT CHARTR ACTUALLY DOES (for HeyGen context accuracy):
 ───────────────────────────────────────────────────────────────────
 
-MediScribe is a live AI medical scribe. The doctor opens the app,
+Chartr is a live AI medical scribe. The doctor opens the app,
 starts a session, and speaks naturally with their patient.
-MediScribe records and transcribes in real time using Deepgram
+Chartr records and transcribes in real time using Deepgram
 Nova-3 — a model trained on medical vocabulary, tuned for Indian
 English accents. It automatically separates the doctor's voice
 from the patient's voice (speaker diarization) so the transcript
@@ -213,13 +213,13 @@ Common complaints from Indian doctors:
 - "Insurance rejections because ICD codes were wrong or missing"
 - "I go home exhausted from paperwork, not from medicine"
 
-MediScribe solves all of this. The doctor never holds a pen during
+Chartr solves all of this. The doctor never holds a pen during
 consultation. Full attention stays on the patient. The note is more
 complete than anything hand-written because it's based on the full
 conversation, not memory. ICD codes are auto-suggested. Prescription
 is typed and structured. Patient leaves with a clear instruction sheet.
 
-ROI: At ₹500/hour saved, MediScribe pays for itself in under 3 days.
+ROI: At ₹500/hour saved, Chartr pays for itself in under 3 days.
 
 ───────────────────────────────────────────────────────────────────
 B-ROLL NOTE (for later insertion):

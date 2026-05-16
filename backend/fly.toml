@@ -1,5 +1,5 @@
-# fly.toml — Fly.io config for MediScribe backend
-# Deploy from the mediscribe/backend/ directory:
+# fly.toml — Fly.io config for Chartr backend
+# Deploy from the backend/ directory:
 #   fly launch   (first time — creates the app)
 #   fly deploy   (subsequent deploys)
 

@@ -18,7 +18,7 @@ export default function SetupPasswordPage({ onSuccess }) {
     return (
       <div className={styles.overlay}>
         <div className={styles.card}>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.error}>Invalid or missing setup link.</p>
           <button className={styles.btn} onClick={() => navigate('/login')}>Go to login</button>
         </div>
@@ -36,7 +36,7 @@ export default function SetupPasswordPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.setupPassword(setupToken, password)
-      localStorage.setItem('mediscribe_token', token)
+      localStorage.setItem('chartr_token', token)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
       onSuccess()
@@ -51,7 +51,7 @@ export default function SetupPasswordPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Set your password to activate your account</p>
         </div>
 

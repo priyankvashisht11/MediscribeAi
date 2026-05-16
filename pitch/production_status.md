@@ -1,4 +1,4 @@
-# MediScribe — Production Status Report
+# Chartr — Production Status Report
 **Date:** 13 May 2026
 **Status:** LIVE ✅
 
@@ -12,7 +12,7 @@ User Browser
      ▼
 ┌─────────────────────────────────┐
 │  Vercel CDN (Global Edge)       │
-│  https://mediscribe-ai-eight    │
+│  https://chartr-ai-eight    │
 │  .vercel.app                    │
 │  React 18 + Vite, SPA           │
 │  Framework: Vite + React Router │
@@ -21,7 +21,7 @@ User Browser
               ▼
 ┌─────────────────────────────────┐
 │  Fly.io — Mumbai (bom)          │
-│  https://mediscribe-api.fly.dev │
+│  https://chartr-api.fly.dev │
 │  FastAPI + Python 3.12          │
 │  Docker, 512MB RAM, 1 shared CPU│
 │  auto_stop: ON (sleeps at idle) │
@@ -105,8 +105,8 @@ User Browser
 |----------|------------|
 | GitHub | https://github.com/priyankvashisht11/MediscribeAi |
 | Branch | `main` |
-| Backend path | `mediscribe/backend/` |
-| Frontend path | `mediscribe/frontend/` |
+| Backend path | `chartr/backend/` |
+| Frontend path | `chartr/frontend/` |
 
 ---
 

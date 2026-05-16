@@ -143,18 +143,18 @@ async def _seed_demo_clinic() -> None:
     hashed = pwd_context.hash(seed_password)
 
     demo_doctors = [
-        {"id": UUID("00000000-0000-0000-0000-000000000001"), "name": "Dr. Ananya Sharma", "specialty": "General Physician", "email": "ananya@demo.mediscribe.in", "role": "admin"},
-        {"id": UUID("00000000-0000-0000-0000-000000000002"), "name": "Dr. Rajesh Kumar",  "specialty": "Pediatrics",        "email": "rajesh@demo.mediscribe.in", "role": "doctor"},
-        {"id": UUID("00000000-0000-0000-0000-000000000003"), "name": "Dr. Priya Singh",   "specialty": "Dermatology",       "email": "priya@demo.mediscribe.in",  "role": "doctor"},
-        {"id": UUID("00000000-0000-0000-0000-000000000004"), "name": "Dr. Amit Verma",    "specialty": "Cardiology",        "email": "amit@demo.mediscribe.in",   "role": "doctor"},
-        {"id": UUID("00000000-0000-0000-0000-000000000005"), "name": "Dr. Sunita Rao",    "specialty": "Gynecology",        "email": "sunita@demo.mediscribe.in", "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000001"), "name": "Dr. Ananya Sharma", "specialty": "General Physician", "email": "ananya@demo.chartr.in", "role": "admin"},
+        {"id": UUID("00000000-0000-0000-0000-000000000002"), "name": "Dr. Rajesh Kumar",  "specialty": "Pediatrics",        "email": "rajesh@demo.chartr.in", "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000003"), "name": "Dr. Priya Singh",   "specialty": "Dermatology",       "email": "priya@demo.chartr.in",  "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000004"), "name": "Dr. Amit Verma",    "specialty": "Cardiology",        "email": "amit@demo.chartr.in",   "role": "doctor"},
+        {"id": UUID("00000000-0000-0000-0000-000000000005"), "name": "Dr. Sunita Rao",    "specialty": "Gynecology",        "email": "sunita@demo.chartr.in", "role": "doctor"},
     ]
 
     async with AsyncSessionLocal() as db:
         # Upsert demo clinic
         clinic = await db.get(Clinic, DEMO_CLINIC_ID)
         if not clinic:
-            db.add(Clinic(id=DEMO_CLINIC_ID, name="MediScribe Demo Clinic", plan_type="clinic"))
+            db.add(Clinic(id=DEMO_CLINIC_ID, name="Chartr Demo Clinic", plan_type="clinic"))
             await db.flush()
 
         for d in demo_doctors:
@@ -167,7 +167,7 @@ async def _seed_demo_clinic() -> None:
                 if not existing.hashed_password:
                     existing.hashed_password = hashed
                 # Update email to new demo domain if still on old domain
-                if existing.email and existing.email.endswith("@mediscribe.dev"):
+                if existing.email and existing.email.endswith("@chartr.dev"):
                     existing.email = d["email"]
             else:
                 db.add(Doctor(
@@ -223,7 +223,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="MediScribe API",
+    title="Chartr API",
     version="0.3.0",
     description="Ambient AI Medical Scribe",
     lifespan=lifespan,

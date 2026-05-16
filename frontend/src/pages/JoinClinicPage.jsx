@@ -30,7 +30,7 @@ export default function JoinClinicPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.register(form)
-      localStorage.setItem('mediscribe_token', token)
+      localStorage.setItem('chartr_token', token)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
       onSuccess()
@@ -45,7 +45,7 @@ export default function JoinClinicPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Join your clinic with an invite code</p>
         </div>
 

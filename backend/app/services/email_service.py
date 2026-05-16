@@ -21,7 +21,7 @@ async def send_password_reset_email(to_email: str, reset_url: str, doctor_name: 
         logger.warning("RESEND_API_KEY not set — password reset email not sent to %s", to_email)
         return False
 
-    subject = "Reset your MediScribe password"
+    subject = "Reset your Chartr password"
     html_body = f"""
 <!DOCTYPE html>
 <html>
@@ -31,13 +31,13 @@ async def send_password_reset_email(to_email: str, reset_url: str, doctor_name: 
   <div style="max-width: 480px; margin: 0 auto; background: #fff;
               border-radius: 12px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,.08);">
     <div style="font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px;">
-      MediScribe
+      Chartr
     </div>
     <p style="color: #6b7280; font-size: 14px; margin-top: 0;">Clinical AI for Doctors</p>
     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
     <p style="font-size: 15px; color: #111827;">Hi {doctor_name},</p>
     <p style="font-size: 15px; color: #374151; line-height: 1.6;">
-      We received a request to reset your MediScribe password.
+      We received a request to reset your Chartr password.
       Click the button below to set a new password. This link expires in <strong>1 hour</strong>.
     </p>
     <a href="{reset_url}"
@@ -52,7 +52,7 @@ async def send_password_reset_email(to_email: str, reset_url: str, doctor_name: 
     </p>
     <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
     <p style="font-size: 12px; color: #d1d5db;">
-      MediScribe · Clinical AI for Indian Doctors
+      Chartr · Clinical AI for Indian Doctors
     </p>
   </div>
 </body>
@@ -68,7 +68,7 @@ async def send_password_reset_email(to_email: str, reset_url: str, doctor_name: 
                     "Content-Type": "application/json",
                 },
                 json={
-                    "from": f"MediScribe <{settings.from_email}>",
+                    "from": f"Chartr <{settings.from_email}>",
                     "to": [to_email],
                     "subject": subject,
                     "html": html_body,

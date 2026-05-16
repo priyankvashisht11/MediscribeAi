@@ -303,7 +303,7 @@
   }
 
   .page::before {
-    content: "MediScribe Clinical Note";
+    content: "Chartr Clinical Note";
     display: block;
     font-size: 14pt;
     font-weight: 700;

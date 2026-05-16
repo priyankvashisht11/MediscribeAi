@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-seed_demo.py — Populate MediScribe with 3 realistic demo sessions.
+seed_demo.py — Populate Chartr with 3 realistic demo sessions.
 
 Usage (from project root):
   docker compose exec backend python scripts/seed_demo.py

@@ -64,7 +64,7 @@ function useAuth() {
   const [checking, setChecking] = useState(true)
 
   const bootstrap = async () => {
-    const token = localStorage.getItem('mediscribe_token')
+    const token = localStorage.getItem('chartr_token')
     if (!token) {
       useDoctorStore.getState().clearDoctor()
       setAuthed(false)
@@ -76,7 +76,7 @@ function useAuth() {
       useDoctorStore.getState().setDoctor(doctor)
       setAuthed(true)
     } catch {
-      localStorage.removeItem('mediscribe_token')
+      localStorage.removeItem('chartr_token')
       useDoctorStore.getState().clearDoctor()
       setAuthed(false)
     } finally {
@@ -90,8 +90,8 @@ function useAuth() {
 
   useEffect(() => {
     const handler = () => bootstrap()
-    window.addEventListener('mediscribe_auth_change', handler)
-    return () => window.removeEventListener('mediscribe_auth_change', handler)
+    window.addEventListener('chartr_auth_change', handler)
+    return () => window.removeEventListener('chartr_auth_change', handler)
   }, [])
 
   return {
