@@ -4,7 +4,7 @@
 
 set -e
 
-echo "🔨 Building MediScribe Android APK..."
+echo "🔨 Building Chartr Android APK..."
 
 cd "$(dirname "$0")/frontend"
 
