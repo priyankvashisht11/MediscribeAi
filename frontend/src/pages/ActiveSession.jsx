@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { notesApi, sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSessionWs } from '../hooks/useSessionWs'
-import { useAudioCapture } from '../hooks/useAudioCapture'
+import { useNativeAudio } from '../hooks/useNativeAudio'
 import { useUiStore } from '../stores/uiStore'
 import { apiFetch } from '../utils/apiFetch'
 import { Square, RefreshCw, ArrowLeftRight } from 'lucide-react'
@@ -158,8 +158,9 @@ export default function ActiveSession() {
   // Real WebSocket connection
   const { sendAudioChunk, connectionError } = useSessionWs(sessionId)
 
-  // Real microphone capture — sends each chunk directly to WebSocket
-  const { micStatus, startCapture, stopCapture, errorMessage: micError } = useAudioCapture({
+  // Microphone capture — useNativeAudio requests Android permission first,
+  // then delegates to useAudioCapture (getUserMedia) which works on both web and native WebView.
+  const { micStatus, startCapture, stopCapture, errorMessage: micError } = useNativeAudio({
     onChunk: sendAudioChunk,
     isConnected: wsStatus === 'connected',
   })
