@@ -286,7 +286,7 @@ Known Allergies: {patient.known_allergies or 'None documented'}
 Chronic Conditions: {patient.chronic_conditions or 'None documented'}
 Blood Group: {patient.blood_group or 'Unknown'}"""
 
-    prompt = f"""You are MediScribe Clinical AI performing a longitudinal health analysis.
+    prompt = f"""You are Chartr Clinical AI performing a longitudinal health analysis.
 
 {patient_context}
 

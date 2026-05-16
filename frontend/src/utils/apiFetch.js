@@ -16,7 +16,7 @@ export async function apiFetch(url, options = {}) {
   return fetch(`${base}${url}`, { ...options, headers }).then(async res => {
     if (res.status === 401) {
       await removeToken()
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      window.dispatchEvent(new Event('chartr_auth_change'))
     }
     return res
   })

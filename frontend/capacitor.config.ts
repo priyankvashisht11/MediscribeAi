@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'in.mediscribe.app',
-  appName: 'MediScribe',
+  appId: 'in.chartr.app',
+  appName: 'Chartr',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

@@ -22,12 +22,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link: mediscribe://reset-password?token=... opens app from email -->
+            <!-- Deep link: chartr://reset-password?token=... opens app from email -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="mediscribe" />
+                <data android:scheme="chartr" />
             </intent-filter>
 
         </activity>

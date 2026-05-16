@@ -1,4 +1,4 @@
-package in.mediscribe.app;
+package app.chartr;
 
 import com.getcapacitor.BridgeActivity;
 

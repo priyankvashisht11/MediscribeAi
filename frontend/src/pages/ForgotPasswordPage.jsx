@@ -28,7 +28,7 @@ export default function ForgotPasswordPage() {
     return (
       <div className={styles.overlay}>
         <div className={styles.card}>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <div style={{ textAlign: 'center', padding: 'var(--space-4) 0' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-3)' }}>📬</div>
             <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
@@ -59,7 +59,7 @@ export default function ForgotPasswordPage() {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Reset your password</p>
         </div>
 

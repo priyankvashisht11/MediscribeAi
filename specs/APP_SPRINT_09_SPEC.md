@@ -10,7 +10,7 @@ Settings, Analytics, and Clinic Admin screens are usable on mobile. Feature pari
 - Sections: Account, Clinic, Security, About
 - Account: name, specialty, email (read-only), change password button
 - Security: logout button (prominent, bottom of screen)
-- About: version number, "Powered by MediScribe" + build number
+- About: version number, "Powered by Chartr" + build number
 
 ### 2. Analytics (mobile)
 - Stat cards: 2-column grid (was 4-column on web)

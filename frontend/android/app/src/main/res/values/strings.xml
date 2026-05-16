@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">MediScribe</string>
-    <string name="title_activity_main">MediScribe</string>
-    <string name="package_name">in.mediscribe.app</string>
-    <string name="custom_url_scheme">in.mediscribe.app</string>
+    <string name="app_name">Chartr</string>
+    <string name="title_activity_main">Chartr</string>
+    <string name="package_name">app.chartr</string>
+    <string name="custom_url_scheme">app.chartr</string>
 </resources>

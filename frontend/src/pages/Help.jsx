@@ -30,7 +30,7 @@ export default function Help() {
       <div className="settings-section">
         <h2 className="settings-section-title">Support</h2>
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-          For issues or feedback, contact the MediScribe team.
+          For issues or feedback, contact the Chartr team.
         </p>
       </div>
     </div>

@@ -73,7 +73,7 @@ export function useNativeAudio({ onChunk, isConnected }) {
     return {
       ...audio,
       micStatus: 'denied',
-      errorMessage: 'Microphone permission denied. Go to Settings → Apps → MediScribe → Permissions → allow Microphone.',
+      errorMessage: 'Microphone permission denied. Go to Settings → Apps → Chartr → Permissions → allow Microphone.',
     }
   }
 

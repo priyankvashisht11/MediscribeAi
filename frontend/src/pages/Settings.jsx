@@ -23,7 +23,7 @@ async function logout() {
   await authApi.logout()
   await removeToken()
   useDoctorStore.getState().clearDoctor()
-  window.dispatchEvent(new Event('mediscribe_auth_change'))
+  window.dispatchEvent(new Event('chartr_auth_change'))
 }
 
 export default function Settings() {
@@ -108,9 +108,9 @@ export default function Settings() {
           <tbody>
             <tr><td>Version</td><td>0.3.0</td></tr>
             <tr><td>Build</td><td>Sprint 10</td></tr>
-            <tr><td>AI Engine</td><td>MediScribe Clinical AI</td></tr>
-            <tr><td>Speech Recognition</td><td>MediScribe Voice Engine (en-IN)</td></tr>
-            <tr><td>Speaker Detection</td><td>MediScribe Voice Engine (built-in)</td></tr>
+            <tr><td>AI Engine</td><td>Chartr Clinical AI</td></tr>
+            <tr><td>Speech Recognition</td><td>Chartr Voice Engine (en-IN)</td></tr>
+            <tr><td>Speaker Detection</td><td>Chartr Voice Engine (built-in)</td></tr>
           </tbody>
         </table>
       </div>

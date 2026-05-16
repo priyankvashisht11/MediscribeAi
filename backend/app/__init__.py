@@ -1,1 +1,1 @@
-# MediScribe Backend App
+# Chartr Backend App

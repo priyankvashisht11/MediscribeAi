@@ -38,7 +38,7 @@ export default function LoginPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={`${styles.card} ${shake ? styles.shake : ''}`}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Sign in to your account</p>
         </div>
 

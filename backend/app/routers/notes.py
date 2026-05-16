@@ -374,7 +374,7 @@ async def export_note_pdf(note_id: UUID, request: Request, db: AsyncSession = De
         logger.error(f"PDF generation failed for note {note_id}: {e}")
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {str(e)}")
 
-    filename = f"mediscribe_note_{str(note_id)[:8]}.pdf"
+    filename = f"chartr_note_{str(note_id)[:8]}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

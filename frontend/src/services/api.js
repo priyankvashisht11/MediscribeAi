@@ -33,7 +33,7 @@ api.interceptors.response.use(
     // Skip refresh for auth endpoints themselves to avoid infinite loops
     if (original.url?.includes('/api/auth/')) {
       await removeToken()
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      window.dispatchEvent(new Event('chartr_auth_change'))
       return Promise.reject(err)
     }
 
@@ -66,7 +66,7 @@ api.interceptors.response.use(
     } catch {
       _flushQueue(null, err)
       await removeToken()
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      window.dispatchEvent(new Event('chartr_auth_change'))
       return Promise.reject(err)
     } finally {
       _refreshing = false

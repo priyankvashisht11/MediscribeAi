@@ -1,4 +1,4 @@
-# MediScribe POC
+# Chartr POC
 
 AI-assisted clinical documentation for Indian medical practitioners.
 
@@ -16,7 +16,7 @@ Stack: React (Vite) · FastAPI · PostgreSQL (pgvector) · Redis · faster-whisp
 
 ### 1. Clone and configure
     git clone <repo>
-    cd mediscribe
+    cd chartr
     cp .env.example .env
     # Edit .env — add PERPLEXITY_API_KEY and HF_TOKEN
 

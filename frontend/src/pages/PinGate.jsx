@@ -40,7 +40,7 @@ export default function PinGate({ onSuccess }) {
   return (
     <div className={styles.overlay}>
       <div className={`${styles.card} ${shake ? styles.shake : ''}`}>
-        <div className={styles.logo}>MediScribe</div>
+        <div className={styles.logo}>Chartr</div>
         <p className={styles.sub}>Enter your access PIN to continue</p>
         <form onSubmit={submit} className={styles.form}>
           <input

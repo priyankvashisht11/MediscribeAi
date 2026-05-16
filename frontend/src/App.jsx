@@ -93,8 +93,8 @@ function useAuth() {
 
   useEffect(() => {
     const handler = () => bootstrap()
-    window.addEventListener('mediscribe_auth_change', handler)
-    return () => window.removeEventListener('mediscribe_auth_change', handler)
+    window.addEventListener('chartr_auth_change', handler)
+    return () => window.removeEventListener('chartr_auth_change', handler)
   }, [])
 
   return {
@@ -107,13 +107,13 @@ function useAuth() {
   }
 }
 
-// Handles mediscribe:// deep links from password-reset emails on Android
+// Handles chartr:// deep links from password-reset emails on Android
 function DeepLinkHandler() {
   const navigate = useNavigate()
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     const listener = CapApp.addListener('appUrlOpen', ({ url }) => {
-      // mediscribe://reset-password?token=xxx  →  /reset-password?token=xxx
+      // chartr://reset-password?token=xxx  →  /reset-password?token=xxx
       try {
         const parsed = new URL(url)
         const path = parsed.pathname || parsed.hostname

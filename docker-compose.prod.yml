@@ -19,7 +19,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - mediscribe_net
+      - chartr_net
 
   redis:
     image: redis:7-alpine
@@ -33,7 +33,7 @@ services:
       timeout: 3s
       retries: 5
     networks:
-      - mediscribe_net
+      - chartr_net
 
   backend:
     build:
@@ -50,7 +50,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - mediscribe_net
+      - chartr_net
     # No source volume mounts in prod — uses baked image
     # Models downloaded on first start (HF_TOKEN required)
 
@@ -64,12 +64,12 @@ services:
     depends_on:
       - backend
     networks:
-      - mediscribe_net
+      - chartr_net
 
 volumes:
   pgdata_prod:
   redisdata_prod:
 
 networks:
-  mediscribe_net:
+  chartr_net:
     driver: bridge

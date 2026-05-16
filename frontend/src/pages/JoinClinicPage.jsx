@@ -46,7 +46,7 @@ export default function JoinClinicPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Join your clinic with an invite code</p>
         </div>
 

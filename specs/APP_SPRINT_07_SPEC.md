@@ -11,14 +11,14 @@ On web, `window.open(pdfUrl)` opens a new tab. On Android WebView, this either f
 ### 1. `@capacitor/filesystem` + `@capacitor/share`
 - `npm install @capacitor/filesystem @capacitor/share`
 - Download PDF from backend as blob
-- Write to `Documents/MediScribe/` folder on device
+- Write to `Documents/Chartr/` folder on device
 - Trigger native share sheet with the file URI
 
 ### 2. PDF action flow
 ```
 User taps "Download PDF"
   → api.get('/api/notes/{id}/pdf', { responseType: 'blob' })
-  → Write to device: MediScribe/note_{id}_{date}.pdf
+  → Write to device: Chartr/note_{id}_{date}.pdf
   → Share.share({ title: 'SOAP Note', url: fileUri })
   → Native sheet: WhatsApp / Email / Print / Drive / etc.
 ```
@@ -53,7 +53,7 @@ if (Capacitor.isNativePlatform()) {
 
 ## Done When
 - [ ] Tap PDF button → spinner → native share sheet opens
-- [ ] File saved to Documents/MediScribe/ on device
+- [ ] File saved to Documents/Chartr/ on device
 - [ ] Can WhatsApp/email the PDF directly from share sheet
 - [ ] Web PDF download still works via browser anchor download
 - [ ] Works for all 3 PDF types

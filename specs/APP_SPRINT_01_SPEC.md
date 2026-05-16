@@ -7,7 +7,7 @@ Wrap the existing React web app in a Capacitor native shell. Android build compi
 
 ### 1. Capacitor Installation
 - `npm install @capacitor/core @capacitor/cli`
-- `npx cap init MediScribe in.mediscribe.app`
+- `npx cap init Chartr in.chartr.app`
 - `npm install @capacitor/android`
 - `npx cap add android`
 
@@ -15,8 +15,8 @@ Wrap the existing React web app in a Capacitor native shell. Android build compi
 ```ts
 import { CapacitorConfig } from '@capacitor/cli'
 const config: CapacitorConfig = {
-  appId: 'in.mediscribe.app',
-  appName: 'MediScribe',
+  appId: 'in.chartr.app',
+  appName: 'Chartr',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
@@ -28,7 +28,7 @@ export default config
 ### 3. Android `build.gradle` tuning
 - `minSdkVersion 23` (Android 6.0+, covers 99% of Indian market)
 - `targetSdkVersion 34`
-- Set `applicationId "in.mediscribe.app"`
+- Set `applicationId "in.chartr.app"`
 
 ### 4. Build + Sync script
 ```bash

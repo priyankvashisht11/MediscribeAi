@@ -6,7 +6,7 @@ export default function Logo({ size = 32 }) {
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="MediScribe"
+      aria-label="Chartr"
     >
       {/* Stethoscope circle head */}
       <circle cx="22" cy="22" r="5" stroke="var(--color-primary)" strokeWidth="2" fill="none" />

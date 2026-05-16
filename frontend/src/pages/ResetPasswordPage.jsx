@@ -19,7 +19,7 @@ export default function ResetPasswordPage() {
     return (
       <div className={styles.overlay}>
         <div className={styles.card}>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.error} style={{ textAlign: 'center' }}>
             Invalid reset link. Please request a new one.
           </p>
@@ -44,7 +44,7 @@ export default function ResetPasswordPage() {
       await setToken(authToken)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
-      window.dispatchEvent(new Event('mediscribe_auth_change'))
+      window.dispatchEvent(new Event('chartr_auth_change'))
     } catch (err) {
       const msg = err.response?.data?.detail || 'Reset failed. The link may have expired.'
       setError(msg)
@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Set a new password</p>
         </div>
 

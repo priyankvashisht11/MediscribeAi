@@ -41,7 +41,7 @@ async function logout() {
   await authApi.logout()
   await removeToken()
   useDoctorStore.getState().clearDoctor()
-  window.dispatchEvent(new Event('mediscribe_auth_change'))
+  window.dispatchEvent(new Event('chartr_auth_change'))
 }
 
 const isNative = Capacitor.isNativePlatform()
@@ -58,11 +58,11 @@ export default function AppShell() {
   useEffect(() => {
     const showHandler = () => setShowShortcuts(true)
     const escHandler = () => setShowShortcuts(false)
-    window.addEventListener('mediscribe:show-shortcuts', showHandler)
-    window.addEventListener('mediscribe:escape', escHandler)
+    window.addEventListener('chartr:show-shortcuts', showHandler)
+    window.addEventListener('chartr:escape', escHandler)
     return () => {
-      window.removeEventListener('mediscribe:show-shortcuts', showHandler)
-      window.removeEventListener('mediscribe:escape', escHandler)
+      window.removeEventListener('chartr:show-shortcuts', showHandler)
+      window.removeEventListener('chartr:escape', escHandler)
     }
   }, [])
 
@@ -78,7 +78,7 @@ export default function AppShell() {
         <div className={styles.sidebarHeader}>
           <button className={styles.logoBtn} onClick={() => navigate('/')} aria-label="Go to dashboard">
             <Logo size={28} />
-            <span className={styles.logoText}>MediScribe</span>
+            <span className={styles.logoText}>Chartr</span>
           </button>
         </div>
 

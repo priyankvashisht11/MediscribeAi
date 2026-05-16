@@ -26,7 +26,7 @@ const FEATURES = [
 
 const HOW_IT_WORKS = [
   { step: '1', title: 'Sign up your clinic', desc: 'Create an account in under a minute. Invite your team with a link.' },
-  { step: '2', title: 'Start a session', desc: 'Select the patient, hit record. Speak naturally — MediScribe handles the rest.' },
+  { step: '2', title: 'Start a session', desc: 'Select the patient, hit record. Speak naturally — Chartr handles the rest.' },
   { step: '3', title: 'Review and sign', desc: 'Edit the AI-generated SOAP note, finalize, and download PDFs.' },
 ]
 
@@ -37,7 +37,7 @@ export default function LandingPage() {
     <div className={styles.page}>
       {/* Nav */}
       <nav className={styles.nav}>
-        <div className={styles.navBrand}>MediScribe</div>
+        <div className={styles.navBrand}>Chartr</div>
         <div className={styles.navActions}>
           <button className={styles.navLink} onClick={() => navigate('/login')}>Sign in</button>
           <button className={styles.navCta} onClick={() => navigate('/signup')}>Get started free</button>
@@ -49,7 +49,7 @@ export default function LandingPage() {
         <div className={styles.heroBadge}>Clinical AI for Indian Doctors</div>
         <h1 className={styles.heroTitle}>
           Your patients talk.<br />
-          MediScribe writes.
+          Chartr writes.
         </h1>
         <p className={styles.heroSub}>
           Ambient AI scribe that listens to your consultations and generates
@@ -104,7 +104,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className={styles.footer}>
-        <div className={styles.footerBrand}>MediScribe</div>
+        <div className={styles.footerBrand}>Chartr</div>
         <p className={styles.footerSub}>Clinical AI · Built for India · en-IN voice recognition</p>
         <div className={styles.footerLinks}>
           <button className={styles.footerLink} onClick={() => navigate('/login')}>Sign in</button>

@@ -1,4 +1,4 @@
-# MediScribe — Client Pitch
+# Chartr — Client Pitch
 
 ## The Problem We Solve
 
@@ -12,9 +12,9 @@ By hand. Every single time.
 
 ---
 
-## What MediScribe Does
+## What Chartr Does
 
-MediScribe is an **ambient AI medical scribe** that listens to the doctor-patient
+Chartr is an **ambient AI medical scribe** that listens to the doctor-patient
 conversation in real time and automatically produces a structured clinical note —
 ready to sign, print, or export as PDF — before the patient leaves the room.
 
@@ -26,12 +26,12 @@ Just talk. We handle the rest.
 ## How It Works — 3 Steps
 
 **Step 1 — Start a Session**
-Doctor opens MediScribe on any device (phone, tablet, laptop).
+Doctor opens Chartr on any device (phone, tablet, laptop).
 Selects patient name and taps Record.
 
 **Step 2 — Consult Normally**
 The doctor conducts the consultation as usual.
-MediScribe listens, transcribes, and separates doctor vs. patient voice in real time.
+Chartr listens, transcribes, and separates doctor vs. patient voice in real time.
 
 **Step 3 — Review & Sign**
 At the end of the consult, a complete SOAP note appears:
@@ -52,8 +52,8 @@ One click to finalize and sign. Then export:
 
 | What | How |
 |------|-----|
-| Transcription | MediScribe Voice Engine — trained on medical vocabulary, works in Indian English, handles accents |
-| SOAP Generation | MediScribe Clinical AI — purpose-built medical reasoning, not a generic chatbot |
+| Transcription | Chartr Voice Engine — trained on medical vocabulary, works in Indian English, handles accents |
+| SOAP Generation | Chartr Clinical AI — purpose-built medical reasoning, not a generic chatbot |
 | Speaker Separation | Built-in diarization — first speaker is automatically assigned as doctor, tuned for Indian OPD workflows |
 | Data Residency | All infrastructure in Mumbai (ap-south-1) — data stays in India |
 | Security | HTTPS everywhere, no audio stored after transcription |
@@ -78,19 +78,19 @@ One click to finalize and sign. Then export:
 ## The Numbers
 
 A GP seeing 40 patients/day spends ~4 minutes per note = **160 minutes/day** on documentation.
-MediScribe reduces that to under 30 seconds per note (review + sign).
+Chartr reduces that to under 30 seconds per note (review + sign).
 **Time saved: 2.5 hours per doctor per day.**
 
 At a conservative billing rate of ₹500/hour, that is ₹1,250/day saved per doctor.
-MediScribe's target price: ₹2,999/month per doctor.
+Chartr's target price: ₹2,999/month per doctor.
 **ROI: Positive in under 3 days of use.**
 
 ---
 
 ## Current Status
 
-MediScribe is live in production today at:
-**https://mediscribe-ai-eight.vercel.app**
+Chartr is live in production today at:
+**https://chartr-ai-eight.vercel.app**
 
 Fully functional:
 - Real-time transcription ✓
@@ -109,7 +109,7 @@ Fully functional:
 
 We are in the **design partner / early adopter** stage.
 We are looking for 3–5 clinics willing to:
-1. Use MediScribe for a free 30-day pilot
+1. Use Chartr for a free 30-day pilot
 2. Give structured feedback (one 30-min call per week)
 3. Co-design features specific to their specialty
 
@@ -125,4 +125,4 @@ In exchange:
 Priyank Vashisht
 pvashisht@thelcfgroup.com
 
-Live demo: https://mediscribe-ai-eight.vercel.app
+Live demo: https://chartr-ai-eight.vercel.app

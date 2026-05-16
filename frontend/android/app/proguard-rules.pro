@@ -1,8 +1,8 @@
-# MediScribe ProGuard / R8 rules
+# Chartr ProGuard / R8 rules
 
 # Keep Capacitor bridge intact — JS interface must not be renamed
 -keep class com.getcapacitor.** { *; }
--keep class in.mediscribe.app.** { *; }
+-keep class app.chartr.** { *; }
 -dontwarn com.getcapacitor.**
 
 # WebView JS interface: keep all public members

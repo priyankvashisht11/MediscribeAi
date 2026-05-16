@@ -8,12 +8,12 @@ Login, Signup, Forgot Password, Reset Password all work on Android. JWT stored i
 ### 1. Capacitor Preferences (replaces localStorage for token)
 - `npm install @capacitor/preferences`
 - Create `src/utils/storage.js` — wrapper with `get/set/remove` that uses Capacitor Preferences on native, localStorage on web
-- Replace all `localStorage.getItem/setItem/removeItem('mediscribe_token')` calls with the wrapper
+- Replace all `localStorage.getItem/setItem/removeItem('chartr_token')` calls with the wrapper
 
 ### 2. Deep Link — Reset Password
-- Android app registers `mediscribe://reset-password` scheme
-- Backend `reset_url` uses `mediscribe://reset-password?token=...` when `User-Agent` indicates Android app (or feature-flagged via env)
-- `AndroidManifest.xml` intent filter for `mediscribe://` scheme
+- Android app registers `chartr://reset-password` scheme
+- Backend `reset_url` uses `chartr://reset-password?token=...` when `User-Agent` indicates Android app (or feature-flagged via env)
+- `AndroidManifest.xml` intent filter for `chartr://` scheme
 - React Router reads the URL on app start — handles the token
 
 ### 3. Cookie handling for refresh token
@@ -37,5 +37,5 @@ Login, Signup, Forgot Password, Reset Password all work on Android. JWT stored i
 - [ ] Refresh token rotates correctly on Android
 
 ## Notes
-- `mediscribe_token` key stays the same — only the storage mechanism changes
+- `chartr_token` key stays the same — only the storage mechanism changes
 - Web (Vercel) continues using localStorage — wrapper detects platform

@@ -37,7 +37,7 @@ export default function SignupPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>MediScribe</div>
+          <div className={styles.logo}>Chartr</div>
           <p className={styles.sub}>Create your clinic account</p>
         </div>
 
