@@ -304,3 +304,36 @@
   .kpiGrid { grid-template-columns: repeat(2, 1fr); }
   .sessionGrid { grid-template-columns: 1fr; }
 }
+
+/* ── Floating Action Button (mobile + native only) ─────────────────────── */
+.fab {
+  display: none; /* hidden on desktop */
+  position: fixed;
+  bottom: calc(72px + var(--safe-bottom, 0px)); /* above bottom tabs */
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(1, 108, 114, 0.45);
+  z-index: 50;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.fab:active {
+  transform: scale(0.94);
+  box-shadow: 0 2px 8px rgba(1, 108, 114, 0.35);
+}
+
+@media (max-width: 768px) {
+  .fab { display: flex; }
+}
+
+:global([data-native='true']) .fab {
+  display: flex;
+}

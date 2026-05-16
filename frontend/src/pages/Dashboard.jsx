@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { useDashboardStats } from '../hooks/useDashboardStats'
 import { useActiveSessions } from '../hooks/useActiveSessions'
 import { useDoctors } from '../context/DoctorsContext'
@@ -7,6 +8,8 @@ import { useUiStore } from '../stores/uiStore'
 import { formatDuration, formatDate } from '../utils/format'
 import { Plus, Activity, Calendar, Mic, FileCheck } from 'lucide-react'
 import styles from './Dashboard.module.css'
+
+const isNative = Capacitor.isNativePlatform()
 
 /* ── Count-up hook ────────────────────────────────────────────────────────── */
 function useCountUp(target, enabled = true, duration = 800) {
@@ -247,6 +250,15 @@ export default function Dashboard() {
           </div>
         </section>
       )}
+
+      {/* Floating "New Session" button — mobile / native only, hidden on desktop */}
+      <button
+        className={styles.fab}
+        onClick={() => navigate('/sessions/new')}
+        aria-label="New Session"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   )
 }

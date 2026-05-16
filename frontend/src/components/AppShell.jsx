@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import {
   LayoutDashboard, Radio, ClipboardList, Users, UserSquare,
   Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
@@ -43,6 +44,8 @@ async function logout() {
   window.dispatchEvent(new Event('mediscribe_auth_change'))
 }
 
+const isNative = Capacitor.isNativePlatform()
+
 export default function AppShell() {
   const { sidebarOpen, toggleSidebar, theme, setTheme } = useUiStore()
   const doctor = useDoctorStore(s => s.doctor)
@@ -66,7 +69,10 @@ export default function AppShell() {
   const toggleTheme = () => setTheme(theme === 'light' ? 'dark' : 'light')
 
   return (
-    <div className={`${styles.shell} ${sidebarOpen ? styles.sidebarOpen : styles.sidebarClosed}`}>
+    <div
+      className={`${styles.shell} ${sidebarOpen ? styles.sidebarOpen : styles.sidebarClosed} ${isNative ? styles.native : ''}`}
+      data-native={isNative ? 'true' : undefined}
+    >
       {/* Sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarHeader}>

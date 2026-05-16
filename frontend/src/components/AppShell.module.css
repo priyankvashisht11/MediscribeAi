@@ -253,3 +253,81 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ── Native Android overrides ────────────────────────────────────────────── */
+/* On Capacitor native the bottom tab bar IS the navigation.
+   Hide the topbar, sidebar trigger, and force the native grid. */
+.native {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 56px;
+}
+
+.native .topbar {
+  display: none;
+}
+
+.native .sidebar {
+  display: none;
+}
+
+.native .overlay {
+  display: none !important;
+}
+
+.native .main {
+  grid-column: 1;
+  grid-row: 1;
+  padding: var(--space-3) var(--space-4);
+  padding-top: calc(var(--space-3) + var(--safe-top));
+}
+
+.native .bottomTabs {
+  display: flex;
+  grid-column: 1;
+  grid-row: 2;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* Center "New" tab — raised teal FAB circle */
+.native .bottomTabAccent {
+  position: relative;
+  color: #fff;
+}
+
+.native .bottomTabAccent::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(1, 108, 114, 0.4);
+  z-index: -1;
+}
+
+/* Also raise FAB on regular mobile */
+@media (max-width: 768px) {
+  .bottomTabAccent {
+    position: relative;
+    color: #fff;
+  }
+
+  .bottomTabAccent::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 4px 12px rgba(1, 108, 114, 0.4);
+    z-index: -1;
+  }
+}

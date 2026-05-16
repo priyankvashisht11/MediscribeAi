@@ -337,3 +337,11 @@ body {
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
 }
+
+/* ── Touch targets (Android native) ────────────────────────────────────────── */
+/* All interactive elements get 44px min tap target on mobile */
+@media (max-width: 768px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+}
