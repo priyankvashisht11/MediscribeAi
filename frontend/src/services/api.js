@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getToken, setToken, removeToken } from '../utils/storage'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -8,8 +9,8 @@ const api = axios.create({
   withCredentials: true,  // send httpOnly refresh cookie on every request
 })
 
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('mediscribe_token')
+api.interceptors.request.use(async config => {
+  const token = await getToken()
   if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
 })
@@ -31,7 +32,7 @@ api.interceptors.response.use(
     }
     // Skip refresh for auth endpoints themselves to avoid infinite loops
     if (original.url?.includes('/api/auth/')) {
-      localStorage.removeItem('mediscribe_token')
+      await removeToken()
       window.dispatchEvent(new Event('mediscribe_auth_change'))
       return Promise.reject(err)
     }
@@ -57,14 +58,14 @@ api.interceptors.response.use(
         { withCredentials: true }
       )
       const newToken = data.token
-      localStorage.setItem('mediscribe_token', newToken)
+      await setToken(newToken)
       api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
       original.headers['Authorization'] = `Bearer ${newToken}`
       _flushQueue(newToken, null)
       return api(original)
     } catch {
       _flushQueue(null, err)
-      localStorage.removeItem('mediscribe_token')
+      await removeToken()
       window.dispatchEvent(new Event('mediscribe_auth_change'))
       return Promise.reject(err)
     } finally {

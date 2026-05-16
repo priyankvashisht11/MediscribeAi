@@ -1,3 +1,4 @@
+import { setToken } from '../utils/storage'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../services/api'
@@ -30,7 +31,7 @@ export default function JoinClinicPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.register(form)
-      localStorage.setItem('mediscribe_token', token)
+      await setToken(token)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
       onSuccess()

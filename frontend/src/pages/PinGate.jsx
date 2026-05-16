@@ -1,3 +1,4 @@
+import { setToken } from '../utils/storage'
 import { useState } from 'react'
 import styles from './PinGate.module.css'
 
@@ -27,7 +28,7 @@ export default function PinGate({ onSuccess }) {
         return
       }
       const { token } = await res.json()
-      localStorage.setItem('mediscribe_token', token)
+      await setToken(token)
       onSuccess()
     } catch {
       setError('Could not reach server. Try again.')

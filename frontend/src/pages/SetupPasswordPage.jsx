@@ -1,3 +1,4 @@
+import { setToken } from '../utils/storage'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../services/api'
@@ -36,7 +37,7 @@ export default function SetupPasswordPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.setupPassword(setupToken, password)
-      localStorage.setItem('mediscribe_token', token)
+      await setToken(token)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
       onSuccess()

@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import { useDoctorStore } from '../stores/doctorStore'
 import { authHeader } from '../utils/apiFetch'
 import { authApi } from '../services/api'
+import { removeToken } from '../utils/storage'
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -16,8 +17,8 @@ function getInitials(name = '') {
 }
 
 async function logout() {
-  await authApi.logout()  // clears httpOnly refresh cookie server-side
-  localStorage.removeItem('mediscribe_token')
+  await authApi.logout()
+  await removeToken()
   useDoctorStore.getState().clearDoctor()
   window.dispatchEvent(new Event('mediscribe_auth_change'))
 }
@@ -27,10 +28,12 @@ export default function Settings() {
   const [health, setHealth] = useState(null)
 
   useEffect(() => {
-    fetch(`${BASE}/health`, { headers: authHeader() })
-      .then(r => r.json())
-      .then(setHealth)
-      .catch(() => setHealth({ status: 'error' }))
+    authHeader().then(headers =>
+      fetch(`${BASE}/health`, { headers })
+        .then(r => r.json())
+        .then(setHealth)
+        .catch(() => setHealth({ status: 'error' }))
+    )
   }, [])
 
   const STATUS_ITEMS = [

@@ -1,3 +1,4 @@
+import { setToken } from '../utils/storage'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../services/api'
@@ -40,7 +41,7 @@ export default function ResetPasswordPage() {
     setError('')
     try {
       const { token: authToken } = await authApi.resetPassword(token, newPassword)
-      localStorage.setItem('mediscribe_token', authToken)
+      await setToken(authToken)
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)
       window.dispatchEvent(new Event('mediscribe_auth_change'))

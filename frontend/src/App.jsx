@@ -1,5 +1,7 @@
-import { lazy, Suspense, useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
+import { App as CapApp } from '@capacitor/app'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DoctorsProvider } from './context/DoctorsContext'
 import AppShell from './components/AppShell'
@@ -17,6 +19,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import LandingPage from './pages/LandingPage'
 import { authApi } from './services/api'
 import { useDoctorStore } from './stores/doctorStore'
+import { getToken, removeToken } from './utils/storage'
 
 const NoteReview        = lazy(() => import('./pages/NoteReview'))
 const TranscriptViewer  = lazy(() => import('./pages/TranscriptViewer'))
@@ -64,7 +67,7 @@ function useAuth() {
   const [checking, setChecking] = useState(true)
 
   const bootstrap = async () => {
-    const token = localStorage.getItem('mediscribe_token')
+    const token = await getToken()
     if (!token) {
       useDoctorStore.getState().clearDoctor()
       setAuthed(false)
@@ -76,7 +79,7 @@ function useAuth() {
       useDoctorStore.getState().setDoctor(doctor)
       setAuthed(true)
     } catch {
-      localStorage.removeItem('mediscribe_token')
+      await removeToken()
       useDoctorStore.getState().clearDoctor()
       setAuthed(false)
     } finally {
@@ -104,6 +107,25 @@ function useAuth() {
   }
 }
 
+// Handles mediscribe:// deep links from password-reset emails on Android
+function DeepLinkHandler() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const listener = CapApp.addListener('appUrlOpen', ({ url }) => {
+      // mediscribe://reset-password?token=xxx  →  /reset-password?token=xxx
+      try {
+        const parsed = new URL(url)
+        const path = parsed.pathname || parsed.hostname
+        const search = parsed.search
+        navigate(`/${path.replace(/^\//, '')}${search}`)
+      } catch {}
+    })
+    return () => { listener.then(l => l.remove()) }
+  }, [navigate])
+  return null
+}
+
 export default function App() {
   const { authed, checking, onSuccess } = useAuth()
 
@@ -112,6 +134,7 @@ export default function App() {
   if (!authed) {
     return (
       <BrowserRouter>
+        <DeepLinkHandler />
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage onSuccess={onSuccess} />} />

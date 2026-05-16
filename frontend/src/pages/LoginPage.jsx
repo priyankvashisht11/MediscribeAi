@@ -1,3 +1,4 @@
+import { setToken } from '../utils/storage'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '../services/api'
@@ -18,7 +19,7 @@ export default function LoginPage({ onSuccess }) {
     setError('')
     try {
       const { token } = await authApi.login(email.trim(), password)
-      localStorage.setItem('mediscribe_token', token)
+      await setToken(token)
       // Hydrate doctor store immediately
       const doctor = await authApi.me()
       useDoctorStore.getState().setDoctor(doctor)

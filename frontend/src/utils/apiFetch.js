@@ -1,19 +1,21 @@
-export function authHeader() {
-  const token = localStorage.getItem('mediscribe_token')
+import { getToken, removeToken } from './storage'
+
+export async function authHeader() {
+  const token = await getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-export function apiFetch(url, options = {}) {
+export async function apiFetch(url, options = {}) {
+  const token = await getToken()
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers ?? {}),
   }
-  const token = localStorage.getItem('mediscribe_token')
   if (token) headers['Authorization'] = `Bearer ${token}`
   const base = import.meta.env.VITE_API_URL || ''
-  return fetch(`${base}${url}`, { ...options, headers }).then(res => {
+  return fetch(`${base}${url}`, { ...options, headers }).then(async res => {
     if (res.status === 401) {
-      localStorage.removeItem('mediscribe_token')
+      await removeToken()
       window.dispatchEvent(new Event('mediscribe_auth_change'))
     }
     return res

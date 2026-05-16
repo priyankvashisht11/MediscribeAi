@@ -9,6 +9,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useDoctorStore } from '../stores/doctorStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { authApi } from '../services/api'
+import { removeToken } from '../utils/storage'
 import Logo from './Logo'
 import ToastContainer from './Toast'
 import styles from './AppShell.module.css'
@@ -37,7 +38,7 @@ const BOTTOM_TABS = [
 
 async function logout() {
   await authApi.logout()
-  localStorage.removeItem('mediscribe_token')
+  await removeToken()
   useDoctorStore.getState().clearDoctor()
   window.dispatchEvent(new Event('mediscribe_auth_change'))
 }

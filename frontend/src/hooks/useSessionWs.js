@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { useSessionStore } from '../stores/sessionStore'
+import { getToken } from '../utils/storage'
 
 const WS_RECONNECT_DELAY_MS = 2000
 const WS_MAX_RECONNECT_ATTEMPTS = 3
@@ -15,7 +16,7 @@ export function useSessionWs(sessionId) {
 
   const [connectionError, setConnectionError] = useState(null)
 
-  const connect = useCallback((cancelled) => {
+  const connect = useCallback(async (cancelled) => {
     if (!isMountedRef.current || !sessionId || cancelled?.value) return
 
     // Guard: don't open a new connection if one is already live
@@ -32,7 +33,7 @@ export function useSessionWs(sessionId) {
       ? apiUrl.replace(/^https/, 'wss').replace(/^http/, 'ws')
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
     // Browsers cannot send custom headers on WebSocket upgrades — pass JWT as query param
-    const token = localStorage.getItem('mediscribe_token')
+    const token = await getToken()
     const wsUrl = token
       ? `${base}/ws/session/${sessionId}?token=${encodeURIComponent(token)}`
       : `${base}/ws/session/${sessionId}`
