@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Capacitor } from '@capacitor/core'
 import { notesApi, sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
 import { useSessionWs } from '../hooks/useSessionWs'
@@ -8,7 +9,10 @@ import { useNativeAudio } from '../hooks/useNativeAudio'
 import { useUiStore } from '../stores/uiStore'
 import { apiFetch } from '../utils/apiFetch'
 import { Square, RefreshCw, ArrowLeftRight } from 'lucide-react'
+import MobileSessionView from './MobileSessionView'
 import styles from './ActiveSession.module.css'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 // Helper: format seconds as MM:SS
 function formatDuration(seconds) {
@@ -139,6 +143,12 @@ export default function ActiveSession() {
   const addToast = useUiStore((s) => s.addToast)
   const { transcriptChunks, wsStatus, clearTranscript, updateChunkSpeaker } = useSessionStore()
 
+  const { data: sessionData } = useQuery({
+    queryKey: ['session', sessionId],
+    queryFn: () => sessionsApi.get(sessionId),
+    staleTime: Infinity,
+  })
+
   const feedRef = useRef(null)
   const [elapsed, setElapsed] = useState(0)
   const [note, setNote] = useState(null)
@@ -229,6 +239,24 @@ export default function ActiveSession() {
       if (flipped !== chunk.speaker) updateChunkSpeaker(chunk.chunkIndex, flipped)
     })
     addToast({ type: 'success', message: 'Speaker labels flipped. Review and confirm after session.' })
+  }
+
+  if (isMobile) {
+    return (
+      <MobileSessionView
+        patientName={sessionData?.patient_name}
+        elapsed={elapsed}
+        transcriptChunks={transcriptChunks}
+        wsStatus={wsStatus}
+        micStatus={micStatus}
+        micError={micError}
+        connectionError={connectionError}
+        ending={ending}
+        onEndSession={handleEndSession}
+        onStartCapture={startCapture}
+        onToggleSpeaker={updateChunkSpeaker}
+      />
+    )
   }
 
   return (
