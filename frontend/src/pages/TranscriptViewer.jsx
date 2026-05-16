@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { apiFetch, authHeader } from '../utils/apiFetch'
 import { patientsApi } from '../services/api'
+import MobileTranscriptViewer from './MobileTranscriptViewer'
 
 const BASE = import.meta.env.VITE_API_URL || ''
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 export default function TranscriptViewer() {
+  if (isMobile) return <MobileTranscriptViewer />
+  return <DesktopTranscriptViewer />
+}
+
+function DesktopTranscriptViewer() {
   const { sessionId } = useParams()
   const navigate = useNavigate()
   const [chunks, setChunks] = useState([])

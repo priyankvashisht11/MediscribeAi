@@ -1,16 +1,25 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { useDoctorStore } from '../stores/doctorStore'
 import { Lock, Mic } from 'lucide-react'
 import PatientSearchInput from '../components/PatientSearchInput'
+import MobileNewSession from './MobileNewSession'
 import styles from './NewSession.module.css'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 const STEPS = ['Patient & Consent', 'Start']
 
 export default function NewSession() {
+  if (isMobile) return <MobileNewSession />
+  return <DesktopNewSession />
+}
+
+function DesktopNewSession() {
   const navigate = useNavigate()
   const setCurrentSession = useSessionStore((s) => s.setCurrentSession)
   const addToast = useUiStore((s) => s.addToast)

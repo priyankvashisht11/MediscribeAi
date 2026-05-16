@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSessionHistory } from '../hooks/useSessionHistory'
 import { useDoctors } from '../context/DoctorsContext'
@@ -56,6 +57,26 @@ export default function MobileSessionHistory({ filter }) {
   const { getDoctorName } = useDoctors()
   const { data, loading, error, filters, updateFilter } = useSessionHistory()
 
+  // Accumulate items across pages so load-more appends rather than replaces
+  const [allItems, setAllItems] = useState([])
+  useEffect(() => {
+    if (loading) return
+    if (filters.page === 1) {
+      setAllItems(data.items)
+    } else {
+      setAllItems(prev => {
+        const existingIds = new Set(prev.map(s => s.id))
+        const newItems = data.items.filter(s => !existingIds.has(s.id))
+        return [...prev, ...newItems]
+      })
+    }
+  }, [data.items, filters.page, loading])
+
+  // Reset accumulated list when filters (not page) change
+  useEffect(() => {
+    setAllItems([])
+  }, [filters.search, filters.status, filters.doctorId, filters.dateFrom, filters.dateTo])
+
   const hasMore = data.page < data.total_pages
 
   return (
@@ -103,7 +124,7 @@ export default function MobileSessionHistory({ filter }) {
           <div className={styles.errorBanner}>Failed to load: {error}</div>
         )}
 
-        {loading && data.items.length === 0 ? (
+        {loading && allItems.length === 0 ? (
           <div className={styles.skeletons}>
             {[1, 2, 3, 4].map(i => (
               <div key={i} className={styles.skeletonCard}>
@@ -113,7 +134,7 @@ export default function MobileSessionHistory({ filter }) {
               </div>
             ))}
           </div>
-        ) : data.items.length === 0 ? (
+        ) : !loading && allItems.length === 0 ? (
           <div className={styles.emptyState}>
             <ClipboardList size={40} strokeWidth={1} className={styles.emptyIcon} />
             <p className={styles.emptyText}>No sessions match your filters</p>
@@ -127,7 +148,7 @@ export default function MobileSessionHistory({ filter }) {
               {data.total} session{data.total !== 1 ? 's' : ''}
             </div>
 
-            {data.items.map(s => (
+            {allItems.map(s => (
               <SessionCard
                 key={s.id}
                 session={s}

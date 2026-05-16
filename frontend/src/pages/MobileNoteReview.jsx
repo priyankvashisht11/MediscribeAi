@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useNote } from '../hooks/useNote'
 import { useUiStore } from '../stores/uiStore'
 import { apiFetch } from '../utils/apiFetch'
-import { ChevronDown, ArrowLeft, CheckCircle, Share2 } from 'lucide-react'
+import { ChevronDown, ArrowLeft, CheckCircle, Share2, FileText } from 'lucide-react'
 import { sharePdf } from '../utils/nativeShare'
 import styles from './MobileNoteReview.module.css'
 
@@ -288,6 +288,14 @@ export default function MobileNoteReview() {
 
       {/* Fixed bottom action bar */}
       <div className={styles.actionBar}>
+        {/* Transcript link */}
+        <button
+          className={styles.transcriptBtn}
+          onClick={() => navigate(`/sessions/${sessionId}/transcript`)}
+        >
+          <FileText size={14} /> View Raw Transcript
+        </button>
+
         {/* PDF download row */}
         <div className={styles.downloadRow}>
           <button
