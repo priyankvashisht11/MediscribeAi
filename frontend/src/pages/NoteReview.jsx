@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { useNote } from '../hooks/useNote'
 import { useUiStore } from '../stores/uiStore'
 import { formatRelativeTime } from '../utils/format'
@@ -7,6 +8,9 @@ import { ArrowLeft, Printer, FileDown, CheckCircle, FileText } from 'lucide-reac
 import { apiFetch } from '../utils/apiFetch'
 import styles from './NoteReview.module.css'
 import { authHeader } from '../utils/apiFetch'
+import MobileNoteReview from './MobileNoteReview'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -105,6 +109,11 @@ function ConfidenceBar({ score }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function NoteReview() {
+  if (isMobile) return <MobileNoteReview />
+  return <DesktopNoteReview />
+}
+
+function DesktopNoteReview() {
   const { id: sessionId } = useParams()
   const navigate = useNavigate()
   const addToast = useUiStore((s) => s.addToast)
