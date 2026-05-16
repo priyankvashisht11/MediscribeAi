@@ -1,34 +1,33 @@
-name: Build Android APK
+name: Build Android
 
 on:
   push:
     branches:
       - mediscribe-app
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
+  # ── Debug APK (every push to mediscribe-app) ──────────────────────────────
+  build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
+    if: github.ref_type == 'branch'
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ── 2. Java 17 ───────────────────────────────────────────────────
       - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # ── 3. Install Android SDK 36 + build-tools ───────────────────────
-      # ubuntu-latest has Android SDK pre-installed but only up to SDK 34.
-      # Capacitor 8 targets SDK 36 — we must install it explicitly.
       - name: Install Android SDK 36 and build-tools
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
@@ -37,7 +36,6 @@ jobs:
             "build-tools;36.0.0" \
             "platform-tools"
 
-      # ── 4. Node.js ───────────────────────────────────────────────────
       - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -49,19 +47,16 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # ── 5. Build React app ────────────────────────────────────────────
       - name: Build React app (Vite)
         working-directory: frontend
         run: npm run build
         env:
           VITE_API_URL: https://mediscribe-api.fly.dev
 
-      # ── 6. Sync Capacitor → Android ──────────────────────────────────
       - name: Sync Capacitor assets to Android
         working-directory: frontend
         run: npx cap sync android
 
-      # ── 7. Cache Gradle ───────────────────────────────────────────────
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -71,14 +66,12 @@ jobs:
           key: gradle-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/**/gradle-wrapper.properties') }}
           restore-keys: gradle-
 
-      # ── 8. Build Debug APK ────────────────────────────────────────────
       - name: Build Debug APK
         working-directory: frontend/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
-      # ── 9. Upload APK ─────────────────────────────────────────────────
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -86,14 +79,102 @@ jobs:
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      # ── 10. Summary ───────────────────────────────────────────────────
       - name: Build summary
         run: |
-          echo "## Android Build Complete ✅" >> $GITHUB_STEP_SUMMARY
+          echo "## Android Debug Build Complete ✅" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Install on OnePlus (no Android Studio needed):" >> $GITHUB_STEP_SUMMARY
+          echo "### Sideload on your device (no Android Studio needed):" >> $GITHUB_STEP_SUMMARY
           echo "1. Go to **Actions tab** → this run → scroll to **Artifacts**" >> $GITHUB_STEP_SUMMARY
           echo "2. Download \`MediScribe-debug-${{ github.run_number }}\` → unzip" >> $GITHUB_STEP_SUMMARY
           echo "3. Send \`app-debug.apk\` to phone (WhatsApp yourself / Google Drive)" >> $GITHUB_STEP_SUMMARY
-          echo "4. On OnePlus: tap the file → allow Install Unknown Apps → Install" >> $GITHUB_STEP_SUMMARY
+          echo "4. On phone: tap the file → allow Install Unknown Apps → Install" >> $GITHUB_STEP_SUMMARY
           echo "5. Open MediScribe — login with your account 🚀" >> $GITHUB_STEP_SUMMARY
+
+  # ── Release AAB (on version tags: v1.0.0, v1.1.0 …) ──────────────────────
+  build-release:
+    name: Build Release AAB (Play Store)
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Install Android SDK 36 and build-tools
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "platform-tools"
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build React app (Vite) — production
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://mediscribe-api.fly.dev
+          NODE_ENV: production
+
+      - name: Sync Capacitor assets to Android
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('frontend/android/**/*.gradle*', 'frontend/android/**/gradle-wrapper.properties') }}
+          restore-keys: gradle-
+
+      # Decode keystore from base64 secret → .jks file on disk
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > /tmp/mediscribe-release.jks
+
+      - name: Build Release AAB (signed)
+        working-directory: frontend/android
+        run: |
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace \
+            -PKEYSTORE_FILE=/tmp/mediscribe-release.jks \
+            -PKEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -PKEY_ALIAS="${{ secrets.KEY_ALIAS }}" \
+            -PKEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediScribe-release-${{ github.ref_name }}
+          path: frontend/android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 90
+
+      - name: Release summary
+        run: |
+          echo "## Release AAB Built ✅  —  ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifact:** \`MediScribe-release-${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Upload to Play Console:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the AAB from Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "2. Go to [Play Console](https://play.google.com/console) → MediScribe → Production" >> $GITHUB_STEP_SUMMARY
+          echo "3. Create new release → upload \`app-release.aab\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Add release notes → Review → Publish 🚀" >> $GITHUB_STEP_SUMMARY
