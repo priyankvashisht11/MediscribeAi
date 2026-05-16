@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { patientsApi } from '../services/api'
 import HealthAnalysisPanel from '../components/HealthAnalysisPanel'
 import { Edit2, Save, X, ExternalLink, Plus } from 'lucide-react'
+import MobilePatientProfile from './MobilePatientProfile'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
@@ -123,6 +127,11 @@ function VisitCard({ visit, index }) {
 }
 
 export default function PatientProfile() {
+  if (isMobile) return <MobilePatientProfile />
+  return <DesktopPatientProfile />
+}
+
+function DesktopPatientProfile() {
   const { patientId } = useParams()
   const navigate = useNavigate()
   const [patient, setPatient] = useState(null)

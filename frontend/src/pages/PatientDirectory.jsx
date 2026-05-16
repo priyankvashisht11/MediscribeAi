@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { patientsApi } from '../services/api'
 import { Search, UserSquare, ChevronRight, Plus } from 'lucide-react'
+import MobilePatientDirectory from './MobilePatientDirectory'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -21,6 +25,11 @@ function genderIcon(gender) {
 }
 
 export default function PatientDirectory() {
+  if (isMobile) return <MobilePatientDirectory />
+  return <DesktopPatientDirectory />
+}
+
+function DesktopPatientDirectory() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [patients, setPatients] = useState([])
