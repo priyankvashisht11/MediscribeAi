@@ -38,3 +38,8 @@ Thumbs.db
 *.pem
 *.key
 .vercel
+
+# Android signing — NEVER commit keystores
+*.jks
+*.keystore
+frontend/android/app/release/
