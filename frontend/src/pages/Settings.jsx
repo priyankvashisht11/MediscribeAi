@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { LogOut } from 'lucide-react'
 import { useDoctorStore } from '../stores/doctorStore'
 import { authHeader } from '../utils/apiFetch'
 import { authApi } from '../services/api'
 import { removeToken } from '../utils/storage'
+
+const isNative = Capacitor.isNativePlatform()
 
 const BASE = import.meta.env.VITE_API_URL || ''
 
@@ -53,23 +56,25 @@ export default function Settings() {
       {doctor && (
         <div className="settings-section">
           <h2 className="settings-section-title">Account</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
-            <span className="doctor-chip-avatar" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, fontSize: 'var(--text-base)', flexShrink: 0 }}>
-              {getInitials(doctor.name)}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontWeight: 600 }}>{doctor.name}</p>
-              <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-                {doctor.specialty} · {doctor.email}
-              </p>
-              <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                Role: {doctor.role} · Clinic: {doctor.clinic_name || '—'}
-              </p>
+          <div style={{ display: 'flex', flexDirection: isNative ? 'column' : 'row', alignItems: isNative ? 'stretch' : 'center', gap: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+              <span className="doctor-chip-avatar" style={{ width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'var(--color-primary)', color: '#fff', fontWeight: 700, fontSize: 'var(--text-base)', flexShrink: 0 }}>
+                {getInitials(doctor.name)}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 600 }}>{doctor.name}</p>
+                <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+                  {doctor.specialty} · {doctor.email}
+                </p>
+                <p style={{ margin: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
+                  Role: {doctor.role} · Clinic: {doctor.clinic_name || '—'}
+                </p>
+              </div>
             </div>
             <button
               className="btn btn-ghost btn-sm"
               onClick={logout}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, flexShrink: 0, minHeight: isNative ? 44 : undefined }}
             >
               <LogOut size={14} />
               Sign out

@@ -1,10 +1,14 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { useSessionHistory } from '../hooks/useSessionHistory'
 import { useDoctors } from '../context/DoctorsContext'
 import { PaginationBar } from '../components/PaginationBar'
 import { formatDuration, formatDate } from '../utils/format'
 import { Eye, ClipboardList, FileText } from 'lucide-react'
+import MobileSessionHistory from './MobileSessionHistory'
 import styles from './SessionHistory.module.css'
+
+const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
 function StatusChip({ status }) {
   return (
@@ -27,6 +31,11 @@ function TableSkeletonRows({ count }) {
 }
 
 export default function SessionHistory({ filter }) {
+  if (isMobile) return <MobileSessionHistory filter={filter} />
+  return <DesktopSessionHistory filter={filter} />
+}
+
+function DesktopSessionHistory({ filter }) {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { getDoctorName, doctors } = useDoctors()
