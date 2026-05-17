@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import uuid as _uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -14,8 +15,11 @@ engine = create_async_engine(
     echo=settings.environment == "development",
     poolclass=NullPool,
     connect_args={
+        # pgbouncer transaction mode: asyncpg must never reuse prepared-statement
+        # names across connections — UUIDs guarantee global uniqueness so stale
+        # statements left on a recycled pgbouncer backend never cause conflicts.
         "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"_ps_{_uuid.uuid4().hex}",
     },
 )
 
