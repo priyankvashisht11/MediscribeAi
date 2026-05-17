@@ -13,7 +13,10 @@ engine = create_async_engine(
     settings.database_url,
     echo=settings.environment == "development",
     poolclass=NullPool,
-    connect_args={"statement_cache_size": 0},
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -29,15 +32,22 @@ class Base(DeclarativeBase):
 
 async def init_db(retries: int = 5, delay: float = 2.0) -> None:
     """Create all tables on startup. Retries on transient pgbouncer/connection errors."""
+    from sqlalchemy import text
     for attempt in range(1, retries + 1):
         try:
             async with engine.begin() as conn:
+                # Clear stale prepared statements left by pgbouncer on cold wake
+                try:
+                    await conn.execute(text("DEALLOCATE ALL"))
+                except Exception:
+                    pass
                 await conn.run_sync(Base.metadata.create_all)
             return
         except Exception as e:
             if attempt == retries:
                 raise
             logger.warning("[DB] init_db attempt %d/%d failed: %s — retrying in %.0fs", attempt, retries, e, delay)
+            await engine.dispose()
             await asyncio.sleep(delay)
 
 
