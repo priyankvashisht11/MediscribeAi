@@ -167,7 +167,11 @@ async def _seed_demo_clinic() -> None:
                 if not existing.hashed_password:
                     existing.hashed_password = hashed
                 # Update email to new demo domain if still on old domain
-                if existing.email and existing.email.endswith("@chartr.dev"):
+                if existing.email and (
+                    existing.email.endswith("@chartr.dev") or
+                    existing.email.endswith("@demo.mediscribe.in") or
+                    existing.email.endswith("@demo.chartr.dev")
+                ):
                     existing.email = d["email"]
             else:
                 db.add(Doctor(
