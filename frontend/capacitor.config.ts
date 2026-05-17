@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
-  appId: 'in.chartr.app',
+  appId: 'app.chartr',
   appName: 'Chartr',
   webDir: 'dist',
   server: {
