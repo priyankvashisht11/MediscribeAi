@@ -2,6 +2,31 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { patientsApi } from '../services/api'
 import { Search, UserSquare, ChevronRight, Plus } from 'lucide-react'
+import styles from './PatientDirectory.module.css'
+
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #01696f 0%, #2a9da3 100%)',
+  'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)',
+  'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+  'linear-gradient(135deg, #16a34a 0%, #4ade80 100%)',
+  'linear-gradient(135deg, #dc2626 0%, #fb7185 100%)',
+  'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)',
+  'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+  'linear-gradient(135deg, #be185d 0%, #f472b6 100%)',
+]
+
+function avatarGradient(name) {
+  const code = (name || 'A').trim().toUpperCase().charCodeAt(0)
+  return AVATAR_GRADIENTS[code % AVATAR_GRADIENTS.length]
+}
+
+function genderIcon(gender) {
+  if (!gender) return null
+  const g = gender.toLowerCase()
+  if (g === 'male') return '♂'
+  if (g === 'female') return '♀'
+  return '⚧'
+}
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value)
@@ -12,12 +37,16 @@ function useDebounce(value, delay) {
   return debounced
 }
 
-function genderIcon(gender) {
-  if (!gender) return ''
-  const g = gender.toLowerCase()
-  if (g === 'male') return '♂'
-  if (g === 'female') return '♀'
-  return '⚧'
+function SkeletonRow() {
+  return (
+    <div className={styles.skeletonRow}>
+      <div className={`skeleton-box ${styles.skeletonAvatar}`} />
+      <div className={styles.skeletonInfo}>
+        <div className="skeleton-box" style={{ height: 14, width: '45%' }} />
+        <div className="skeleton-box" style={{ height: 11, width: '30%' }} />
+      </div>
+    </div>
+  )
 }
 
 export default function PatientDirectory() {
@@ -25,186 +54,144 @@ export default function PatientDirectory() {
   const [query, setQuery] = useState('')
   const [patients, setPatients] = useState([])
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
   const inputRef = useRef(null)
 
   const debouncedQuery = useDebounce(query, 300)
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedQuery])
+  useEffect(() => { setPage(1) }, [debouncedQuery])
 
   useEffect(() => {
     if (debouncedQuery.length > 0 && debouncedQuery.length < 3) return
-
     setLoading(true)
     setError(null)
     const params = { page, page_size: 20 }
     if (debouncedQuery.length >= 3) params.search = debouncedQuery
-
     patientsApi.list(params)
-      .then(data => {
-        setPatients(data.items || [])
-        setTotal(data.total || 0)
-      })
+      .then(data => { setPatients(data.items || []); setTotal(data.total || 0) })
       .catch(err => setError(err.message || 'Failed to load patients'))
       .finally(() => setLoading(false))
   }, [debouncedQuery, page])
 
-  // Focus search on mount
   useEffect(() => { inputRef.current?.focus() }, [])
 
   const showSearchHint = query.length > 0 && query.length < 3
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: 'var(--space-6)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: 'var(--space-6)' }}>
-        <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 700 }}>Patients</h1>
-        <button
-          className="btn btn-primary btn-sm"
-          onClick={() => navigate('/sessions/new')}
-          style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}
-        >
+    <div className={styles.page}>
+      {/* Header */}
+      <div className={styles.header}>
+        <div className={styles.titleGroup}>
+          <h1 className={styles.title}>Patients</h1>
+          {!loading && total > 0 && (
+            <span className={styles.totalBadge}>{total}</span>
+          )}
+        </div>
+        <button className={styles.newBtn} onClick={() => navigate('/sessions/new')}>
           <Plus size={14} /> New Session
         </button>
       </div>
 
-      {/* Search bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-        background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)',
-        marginBottom: 'var(--space-4)',
-      }}>
-        <Search size={16} style={{ color: 'var(--color-text-muted)', flexShrink: 0 }} />
+      {/* Search */}
+      <div className={styles.searchWrap}>
+        <Search size={16} className={styles.searchIcon} />
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search by name (min. 3 characters)…"
+          placeholder="Search patients by name…"
           value={query}
           onChange={e => setQuery(e.target.value)}
-          style={{
-            flex: 1, border: 'none', outline: 'none',
-            background: 'transparent', fontSize: 'var(--text-sm)',
-            color: 'var(--color-text)',
-          }}
+          className={styles.searchInput}
         />
         {query && (
-          <button
-            onClick={() => setQuery('')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer',
-                     color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}
-          >
-            ✕
-          </button>
+          <button className={styles.clearBtn} onClick={() => setQuery('')}>✕</button>
         )}
       </div>
 
       {showSearchHint && (
-        <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
-                    marginBottom: 'var(--space-3)', paddingLeft: 'var(--space-1)' }}>
-          Type at least 3 characters to search
-        </p>
+        <p className={styles.searchHint}>Type at least 3 characters to search</p>
       )}
 
-      {/* Results */}
+      {/* Content */}
       {loading ? (
-        <div style={{ padding: 'var(--space-12)', textAlign: 'center',
-                      color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-          Loading…
+        <div className={styles.list}>
+          {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
         </div>
       ) : error ? (
         <div className="error-state">
           <p className="error-state-message">{error}</p>
         </div>
       ) : patients.length === 0 ? (
-        <div style={{ padding: 'var(--space-12)', textAlign: 'center' }}>
-          <UserSquare size={40} style={{ color: 'var(--color-text-muted)', marginBottom: 'var(--space-3)' }} />
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
+        <div className={styles.empty}>
+          <div className={styles.emptyIcon}><UserSquare size={28} strokeWidth={1.4} /></div>
+          <p className={styles.emptyTitle}>
             {query.length >= 3 ? `No patients matching "${query}"` : 'No patients yet'}
           </p>
-          <p style={{ color: 'var(--color-text-faint)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)' }}>
-            Patients are created automatically when you start a new session
+          <p className={styles.emptyHint}>
+            Patients are created automatically when you start a new session.
           </p>
         </div>
       ) : (
         <>
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
-                      marginBottom: 'var(--space-3)', paddingLeft: 'var(--space-1)' }}>
+          <p className={styles.resultMeta}>
             {total} patient{total !== 1 ? 's' : ''} {query.length >= 3 ? `matching "${query}"` : 'total'}
           </p>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {patients.map(p => (
-              <button
-                key={p.id}
-                onClick={() => navigate(`/patients/${p.id}`)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
-                  background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)', padding: 'var(--space-3) var(--space-4)',
-                  cursor: 'pointer', textAlign: 'left', width: '100%',
-                  transition: 'border-color 0.15s, box-shadow 0.15s',
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--color-primary)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border)'}
-              >
-                {/* Avatar */}
-                <div style={{
-                  width: 40, height: 40, borderRadius: '50%',
-                  background: 'var(--color-primary-light)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 'var(--text-sm)', fontWeight: 700,
-                  color: 'var(--color-primary)', flexShrink: 0,
-                }}>
-                  {p.name.trim().charAt(0).toUpperCase()}
-                </div>
+          <div className={styles.list}>
+            {patients.map(p => {
+              const firstCondition = p.chronic_conditions
+                ? p.chronic_conditions.split(',')[0].trim()
+                : null
 
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>
-                      {p.name}
-                    </span>
-                    {p.gender && (
-                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                        {genderIcon(p.gender)}
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginTop: 2 }}>
-                    {[p.age != null && `${p.age}y`, p.phone].filter(Boolean).join(' · ') || 'No details'}
-                    {p.chronic_conditions && (
-                      <span style={{ marginLeft: 'var(--space-2)', color: 'var(--color-warning)' }}>
-                        · {p.chronic_conditions.split(',')[0].trim()}
-                      </span>
-                    )}
-                  </div>
-                </div>
+              const metaParts = [
+                p.age != null && `${p.age}y`,
+                p.phone,
+              ].filter(Boolean)
 
-                {/* Visit count + chevron */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                              flexShrink: 0 }}>
-                  <span style={{
-                    fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
-                    background: 'var(--color-surface-2)', borderRadius: 'var(--radius-sm)',
-                    padding: '2px 8px',
-                  }}>
-                    {p.visit_count} visit{p.visit_count !== 1 ? 's' : ''}
-                  </span>
-                  <ChevronRight size={14} style={{ color: 'var(--color-text-muted)' }} />
-                </div>
-              </button>
-            ))}
+              return (
+                <button
+                  key={p.id}
+                  className={styles.patientRow}
+                  onClick={() => navigate(`/patients/${p.id}`)}
+                >
+                  <div
+                    className={styles.avatar}
+                    style={{ background: avatarGradient(p.name) }}
+                  >
+                    {p.name.trim().charAt(0).toUpperCase()}
+                  </div>
+
+                  <div className={styles.info}>
+                    <div className={styles.nameRow}>
+                      <span className={styles.name}>{p.name}</span>
+                      {p.gender && (
+                        <span className={styles.genderBadge}>{genderIcon(p.gender)}</span>
+                      )}
+                      {firstCondition && (
+                        <span className={styles.conditionChip}>{firstCondition}</span>
+                      )}
+                    </div>
+                    <div className={styles.meta}>
+                      {metaParts.length > 0 ? metaParts.join(' · ') : 'No additional details'}
+                    </div>
+                  </div>
+
+                  <div className={styles.right}>
+                    <div className={styles.visitBadge}>
+                      <span className={styles.visitNum}>{p.visit_count}</span>
+                      <span className={styles.visitLabel}>{p.visit_count === 1 ? 'visit' : 'visits'}</span>
+                    </div>
+                    <ChevronRight size={14} className={styles.chevron} />
+                  </div>
+                </button>
+              )
+            })}
           </div>
 
-          {/* Pagination */}
           {total > 20 && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          gap: 'var(--space-4)', marginTop: 'var(--space-6)' }}>
+            <div className={styles.pagination}>
               <button
                 className="btn btn-ghost btn-sm"
                 disabled={page === 1}
@@ -212,9 +199,7 @@ export default function PatientDirectory() {
               >
                 ← Prev
               </button>
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-                Page {page} of {Math.ceil(total / 20)}
-              </span>
+              <span className={styles.pageInfo}>Page {page} of {Math.ceil(total / 20)}</span>
               <button
                 className="btn btn-ghost btn-sm"
                 disabled={page * 20 >= total}

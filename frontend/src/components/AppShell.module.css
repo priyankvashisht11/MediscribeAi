@@ -16,6 +16,7 @@
   overscroll-behavior: contain;
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
+  background-image: linear-gradient(to bottom, var(--color-surface) 60%, var(--color-primary-light) 100%);
   transition: transform var(--transition-slow);
   z-index: 20;
 }
@@ -23,6 +24,7 @@
 .sidebarHeader {
   padding: var(--space-4) var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%);
 }
 
 .logoBtn {
@@ -43,10 +45,10 @@
 }
 
 .logoText {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--color-text);
-  letter-spacing: -0.01em;
+  font-size: var(--text-base);
+  font-weight: 800;
+  color: var(--color-primary);
+  letter-spacing: -0.02em;
 }
 
 /* ── Nav ─────────────────────────────────────────────────────────────────── */
@@ -80,8 +82,10 @@
   font-weight: 500;
   color: var(--color-text-secondary);
   text-decoration: none;
-  transition: background var(--transition), color var(--transition);
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
   white-space: nowrap;
+  border-left: 3px solid transparent;
+  margin-left: -3px;
 }
 
 .navItem:hover {
@@ -93,6 +97,8 @@
 .navItemActive {
   background: var(--color-primary-light);
   color: var(--color-primary);
+  font-weight: 600;
+  border-left-color: var(--color-primary);
 }
 
 .navItemActive:hover {
@@ -110,6 +116,7 @@
   padding: 0 var(--space-6);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-surface);
+  box-shadow: 0 1px 0 var(--color-border), 0 2px 8px rgba(0,0,0,0.03);
   position: sticky;
   top: 0;
   z-index: 10;
