@@ -1,18 +1,29 @@
 .page { display: flex; flex-direction: column; gap: var(--space-6); }
 
+/* ── Header ────────────────────────────────────────────────────────────────── */
 .header { display: flex; flex-direction: column; gap: var(--space-1); }
-.title  { font-size: var(--text-2xl); font-weight: 700; color: var(--color-text); margin: 0; }
-.sub    { font-size: var(--text-sm); color: var(--color-text-muted); margin: 0; }
 
+.title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.sub {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ── KPI Grid ──────────────────────────────────────────────────────────────── */
 .statGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
 }
-@media (max-width: 768px) {
-  .statGrid { grid-template-columns: repeat(2, 1fr); }
-}
 
+/* ── Stat Card ─────────────────────────────────────────────────────────────── */
 .statCard {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -20,45 +31,136 @@
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
-.statValue { font-size: var(--text-2xl); font-weight: 700; color: var(--color-text); }
-.statLabel { font-size: var(--text-sm); font-weight: 500; color: var(--color-text-secondary); }
-.statSub   { font-size: var(--text-xs); color: var(--color-text-muted); }
 
+.statCard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--color-primary);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.statCard:hover {
+  box-shadow: 0 6px 24px rgba(0,0,0,0.07);
+  transform: translateY(-2px);
+}
+
+.statValue {
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.statLabel {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.statSub {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ── Chart / Content Card ──────────────────────────────────────────────────── */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  box-shadow: var(--shadow-xs);
 }
+
 .cardTitle {
   font-size: var(--text-base);
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
-  margin: 0 0 var(--space-4) 0;
+  margin: 0 0 var(--space-5) 0;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
-.loading    { font-size: var(--text-sm); color: var(--color-text-muted); padding: var(--space-4) 0; }
-.emptyState { font-size: var(--text-sm); color: var(--color-text-muted); text-align: center; padding: var(--space-6) 0; margin: 0; }
+/* ── Loading / Empty ───────────────────────────────────────────────────────── */
+.loading {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  padding: var(--space-6) 0;
+  text-align: center;
+}
 
-.icdList { display: flex; flex-direction: column; gap: var(--space-3); }
+.emptyState {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-8) 0;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* ── ICD Breakdown ─────────────────────────────────────────────────────────── */
+.icdList { display: flex; flex-direction: column; gap: var(--space-4); }
 
 .icdRow {
   display: grid;
-  grid-template-columns: 200px 1fr 36px;
+  grid-template-columns: 200px 1fr 40px;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
+
+.icdMeta { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+
+.icdCode {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-primary);
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+
+.icdDesc {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icdBarWrap {
+  background: var(--color-surface-2);
+  border-radius: var(--radius-full);
+  height: 8px;
+  overflow: hidden;
+}
+
+.icdBar {
+  background: linear-gradient(90deg, var(--color-primary), #27a3a8);
+  border-radius: var(--radius-full);
+  height: 8px;
+  min-width: 4px;
+  transition: width 0.5s ease;
+}
+
+.icdCount {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) { .statGrid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) {
-  .icdRow { grid-template-columns: 1fr 80px 28px; }
+  .icdRow { grid-template-columns: 1fr 80px 32px; }
 }
-
-.icdMeta { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-.icdCode { font-size: var(--text-xs); font-weight: 600; color: var(--color-primary); }
-.icdDesc { font-size: var(--text-xs); color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-.icdBarWrap { background: var(--color-border); border-radius: 4px; height: 8px; }
-.icdBar     { background: var(--color-primary); border-radius: 4px; height: 8px; min-width: 4px; transition: width 0.4s ease; }
-
-.icdCount { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); text-align: right; }

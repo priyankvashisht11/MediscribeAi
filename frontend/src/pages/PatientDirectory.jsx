@@ -5,14 +5,14 @@ import { Search, UserSquare, ChevronRight, Plus } from 'lucide-react'
 import styles from './PatientDirectory.module.css'
 
 const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #01696f 0%, #2a9da3 100%)',
-  'linear-gradient(135deg, #4f46e5 0%, #818cf8 100%)',
-  'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
-  'linear-gradient(135deg, #16a34a 0%, #4ade80 100%)',
-  'linear-gradient(135deg, #dc2626 0%, #fb7185 100%)',
-  'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)',
-  'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-  'linear-gradient(135deg, #be185d 0%, #f472b6 100%)',
+  'linear-gradient(135deg, #0d7f84 0%, #27a3a8 100%)',  /* teal — brand family */
+  'linear-gradient(135deg, #2a6b8a 0%, #4090b0 100%)',  /* ocean blue */
+  'linear-gradient(135deg, #3d7a58 0%, #5a9e74 100%)',  /* sage green */
+  'linear-gradient(135deg, #9e6e2a 0%, #c28e45 100%)',  /* warm amber */
+  'linear-gradient(135deg, #9a5050 0%, #be7070 100%)',  /* dusty rose */
+  'linear-gradient(135deg, #4a6480 0%, #6280a0 100%)',  /* slate blue */
+  'linear-gradient(135deg, #6a7a3a 0%, #8aa050 100%)',  /* olive */
+  'linear-gradient(135deg, #7a5a3a 0%, #a07856 100%)',  /* terracotta */
 ]
 
 function avatarGradient(name) {
