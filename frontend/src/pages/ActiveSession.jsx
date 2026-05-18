@@ -473,7 +473,7 @@ export default function ActiveSession() {
                 disabled={ending || killing}
                 style={{ flex: 1, color: 'var(--color-error, #dc2626)', opacity: killing ? 0.6 : 1 }}
               >
-                {killing ? 'Deleting…' : 'Kill Session'}
+                {killing ? 'Terminating…' : 'Terminate Session'}
               </button>
               <button
                 className="btn btn-ghost btn-sm"
@@ -481,7 +481,7 @@ export default function ActiveSession() {
                 disabled={ending || killing}
                 style={{ flex: 1, color: 'var(--color-error, #dc2626)', opacity: killing ? 0.6 : 1 }}
               >
-                Kill & Start New
+                Terminate & Start New
               </button>
             </div>
           </div>
