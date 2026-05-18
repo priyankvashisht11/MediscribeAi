@@ -1,9 +1,11 @@
 # backend/app/services/note_generator.py
 
 import logging
+import re
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
@@ -11,6 +13,12 @@ from app.config import settings
 from app.services.icd_lookup import search_icd10
 
 logger = logging.getLogger(__name__)
+
+
+def _strip_think(msg) -> str:
+    """Strip <think>…</think> reasoning blocks from r1-1776 output before JSON parsing."""
+    content = msg.content if hasattr(msg, "content") else str(msg)
+    return re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL).strip()
 
 
 # ── Pydantic output schemas ────────────────────────────────────────────────────
@@ -149,7 +157,7 @@ async def generate_soap_note(
 
     # Chain 1: Extract clinical entities
     try:
-        entity_chain = ENTITY_EXTRACTION_PROMPT | llm | JsonOutputParser()
+        entity_chain = ENTITY_EXTRACTION_PROMPT | llm | RunnableLambda(_strip_think) | JsonOutputParser()
         logger.info(f"Extracting clinical entities ({len(transcript)} chars)...")
         entities = await entity_chain.ainvoke({
             "schema": ClinicalEntities.model_json_schema(),
@@ -164,7 +172,7 @@ async def generate_soap_note(
 
     # Chain 2: Generate SOAP note
     try:
-        soap_chain = SOAP_GENERATION_PROMPT | llm | JsonOutputParser()
+        soap_chain = SOAP_GENERATION_PROMPT | llm | RunnableLambda(_strip_think) | JsonOutputParser()
         logger.info("Generating SOAP note from entities...")
         soap = await soap_chain.ainvoke({
             "schema": SOAPNote.model_json_schema(),

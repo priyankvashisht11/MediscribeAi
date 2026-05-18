@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     # ── LLM / Note Generation ──────────────────────────────────────────────────
     # Perplexity (primary) — uses OpenAI-compatible API
     perplexity_api_key: str = ""
-    perplexity_model: str = "sonar-reasoning-pro"
-    # sonar-reasoning-pro: Perplexity's best reasoning model for structured clinical extraction.
+    perplexity_model: str = "r1-1776"
+    # r1-1776: DeepSeek R1 hosted by Perplexity — strong reasoning, no web search (offline).
+    # No per-request search fees. ~10x cheaper than sonar-reasoning-pro for structured extraction.
     perplexity_base_url: str = "https://api.perplexity.ai"
 
     # OpenAI (fallback)

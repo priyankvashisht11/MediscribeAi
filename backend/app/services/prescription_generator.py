@@ -5,6 +5,7 @@ extract_medications() is the shared extraction function reused by instructions_g
 
 import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 
 from fpdf import FPDF
@@ -106,6 +107,8 @@ async def extract_medications(note: dict) -> PrescriptionExtraction:
             timeout=30,
         )
         raw = resp.choices[0].message.content or ""
+        # Strip <think>…</think> reasoning tokens (r1-1776)
+        raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL)
         # Strip markdown fences if present
         if "```" in raw:
             raw = raw.split("```")[1]

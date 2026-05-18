@@ -4,6 +4,7 @@ Reuses extract_medications() from prescription_generator to avoid a duplicate LL
 """
 
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 
 from fpdf import FPDF
@@ -50,7 +51,9 @@ async def _simplify_assessment(assessment: str) -> str:
             ],
             timeout=20,
         )
-        return resp.choices[0].message.content.strip()
+        raw = resp.choices[0].message.content or ""
+        raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
+        return raw
     except Exception as exc:
         logger.warning("_simplify_assessment failed: %s", exc)
         return assessment
