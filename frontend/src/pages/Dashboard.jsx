@@ -9,7 +9,7 @@ import { formatDuration } from '../utils/format'
 import { Plus, Activity, Calendar, Mic, FileCheck, ArrowRight } from 'lucide-react'
 import styles from './Dashboard.module.css'
 
-/* ── Greeting helpers ─────────────────────────────────────────────────────── */
+/* ── Helpers ──────────────────────────────────────────────────────────────── */
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return 'Good morning'
@@ -21,8 +21,14 @@ function getTodayLabel() {
   return new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+function getFirstName(fullName) {
+  if (!fullName) return null
+  const cleaned = fullName.replace(/^(dr\.?\s+|mr\.?\s+|mrs\.?\s+|ms\.?\s+|prof\.?\s+)/i, '').trim()
+  return cleaned.split(/\s+/)[0] || null
+}
+
 /* ── Count-up hook ────────────────────────────────────────────────────────── */
-function useCountUp(target, enabled = true, duration = 800) {
+function useCountUp(target, enabled = true, duration = 900) {
   const [value, setValue] = useState(0)
   const prevTarget = useRef(0)
 
@@ -47,46 +53,33 @@ function useCountUp(target, enabled = true, duration = 800) {
 /* ── Mini bar chart ───────────────────────────────────────────────────────── */
 function BreakdownBar({ completed, idle, recording, total }) {
   if (!total) return null
-  const pct = v => `${Math.round((v / total) * 100)}%`
+  const pct = v => `${Math.max(2, Math.round((v / total) * 100))}%`
   return (
     <div className={styles.barTrack}>
-      {completed > 0 && (
-        <div className={styles.barSegCompleted} style={{ width: pct(completed) }} title={`Completed: ${completed}`} />
-      )}
-      {recording > 0 && (
-        <div className={styles.barSegRecording} style={{ width: pct(recording) }} title={`Recording: ${recording}`} />
-      )}
-      {idle > 0 && (
-        <div className={styles.barSegIdle} style={{ width: pct(idle) }} title={`Idle: ${idle}`} />
-      )}
+      {completed > 0 && <div className={styles.barSegCompleted} style={{ width: pct(completed) }} />}
+      {recording > 0 && <div className={styles.barSegRecording} style={{ width: pct(recording) }} />}
+      {idle > 0 && <div className={styles.barSegIdle} style={{ flex: 1 }} />}
     </div>
   )
 }
 
 /* ── KPI Card ─────────────────────────────────────────────────────────────── */
-function KpiCard({ label, value, icon: Icon, variant, animate }) {
+function KpiCard({ label, value, icon: Icon, variant, animate, badge }) {
   const animated = useCountUp(value, animate)
   return (
     <div className={`${styles.kpiCard} ${styles[`kpiCard_${variant}`] || ''}`}>
       <div className={styles.kpiTop}>
+        <div className={`${styles.kpiIconWrap} ${variant === 'live' ? styles.kpiIconPulse : ''}`}>
+          {Icon && <Icon size={16} />}
+        </div>
         <span className={styles.kpiLabel}>{label}</span>
-        {Icon && (
-          <div className={`${styles.kpiIconWrap} ${variant === 'live' ? styles.kpiIconPulse : ''}`}>
-            <Icon size={15} />
-          </div>
-        )}
       </div>
       <span className={styles.kpiValue}>{animated}</span>
-      {variant === 'live' && value > 0 && (
-        <span className={styles.liveBadge}>
-          <span className={styles.liveDot} /> LIVE
-        </span>
-      )}
+      {badge && <span className={styles.kpiBadge}>{badge}</span>}
     </div>
   )
 }
 
-/* ── KPI Skeleton ─────────────────────────────────────────────────────────── */
 function KpiSkeleton() {
   return (
     <div className={styles.kpiCard}>
@@ -124,9 +117,7 @@ function ActiveSessionCard({ session, getDoctorName, onNavigate }) {
   return (
     <div className={`${styles.sessionCard} ${session.status === 'recording' ? styles.sessionCardLive : ''}`}>
       <div className={styles.sessionCardTop}>
-        <div>
-          <p className={styles.sessionDoctor}>{getDoctorName(session.doctor_id)}</p>
-        </div>
+        <p className={styles.sessionDoctor}>{getDoctorName(session.doctor_id)}</p>
         <StatusChip status={session.status} />
       </div>
       <p className={styles.sessionPatient}>{session.patient_name ?? 'Patient not assigned'}</p>
@@ -140,7 +131,6 @@ function ActiveSessionCard({ session, getDoctorName, onNavigate }) {
   )
 }
 
-/* ── Active Card Skeleton ─────────────────────────────────────────────────── */
 function ActiveCardSkeleton() {
   return (
     <div className={styles.sessionCard}>
@@ -202,9 +192,11 @@ export default function Dashboard() {
     )
   }
 
-  const firstName = doctor?.name?.split(' ')[0] || 'Doctor'
-  const isLive = (stats?.recording_now ?? 0) > 0
+  const firstName = getFirstName(doctor?.name)
   const todayCount = stats?.today_sessions ?? 0
+  // Use live activeSessions count as ground truth — avoids poll-drift with stats API
+  const liveCount = activeSessions.filter(s => s.status === 'recording').length
+  const isLive = liveCount > 0
 
   const KPI_CARDS = [
     {
@@ -221,9 +213,10 @@ export default function Dashboard() {
     },
     {
       label: 'Recording Now',
-      value: stats?.recording_now,
+      value: liveCount,
       icon: Mic,
       variant: isLive ? 'live' : 'default',
+      badge: isLive ? '● LIVE' : null,
     },
     {
       label: 'Notes Finalized',
@@ -233,22 +226,24 @@ export default function Dashboard() {
     },
   ]
 
-  const totalBreakdown = (stats?.completed_sessions ?? 0) + (stats?.idle_sessions ?? 0) + (stats?.recording_now ?? 0)
+  const totalBreakdown = (stats?.completed_sessions ?? 0) + (stats?.idle_sessions ?? 0) + liveCount
 
   return (
     <div className={styles.page}>
 
-      {/* ── Greeting banner ── */}
-      <div className={styles.greeting}>
+      {/* ── Header row ── */}
+      <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.greetingText}>
-            {getGreeting()}, Dr. {firstName}
+          <h1 className={styles.pageTitle}>
+            {getGreeting()}{firstName ? `, ${firstName}` : ''}
           </h1>
-          <p className={styles.greetingMeta}>
+          <p className={styles.pageMeta}>
             {getTodayLabel()}
             {!statsLoading && (
-              <span className={styles.greetingToday}>
-                · {todayCount === 0 ? 'No sessions yet today' : `${todayCount} session${todayCount !== 1 ? 's' : ''} today`}
+              <span className={styles.pageMetaHighlight}>
+                {todayCount === 0
+                  ? ' · No sessions yet today'
+                  : ` · ${todayCount} session${todayCount !== 1 ? 's' : ''} today`}
               </span>
             )}
           </p>
@@ -270,6 +265,7 @@ export default function Dashboard() {
                 icon={card.icon}
                 variant={card.variant}
                 animate={!hasAnimated.current}
+                badge={card.badge}
               />
             ))
         }
@@ -278,23 +274,21 @@ export default function Dashboard() {
       {/* ── Active sessions ── */}
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>
-            Active Sessions
-            {isLive && <span className={styles.liveCount}>{stats.recording_now} live</span>}
-          </h2>
+          <h2 className={styles.sectionTitle}>Active Sessions</h2>
+          {isLive && (
+            <span className={styles.liveCount}>{liveCount} live</span>
+          )}
         </div>
+
         {activeLoading ? (
           <div className={styles.sessionGrid}>
-            <ActiveCardSkeleton />
-            <ActiveCardSkeleton />
+            <ActiveCardSkeleton /><ActiveCardSkeleton />
           </div>
         ) : activeSessions.length === 0 ? (
           <div className={styles.empty}>
-            <div className={styles.emptyIcon}>
-              <Mic size={28} strokeWidth={1.5} />
-            </div>
+            <div className={styles.emptyIcon}><Mic size={22} strokeWidth={1.5} /></div>
             <p className={styles.emptyTitle}>No active sessions right now</p>
-            <p className={styles.emptyHint}>Start a new session to begin recording and transcribing.</p>
+            <p className={styles.emptyHint}>Start a session to begin recording and transcribing.</p>
             <button className={styles.emptyAction} onClick={() => navigate('/sessions/new')}>
               <Plus size={13} /> Start Session
             </button>
@@ -313,7 +307,7 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* ── Session breakdown ── */}
+      {/* ── Breakdown ── */}
       {!statsLoading && stats && totalBreakdown > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Session Breakdown</h2>
@@ -321,40 +315,30 @@ export default function Dashboard() {
             <BreakdownBar
               completed={stats.completed_sessions ?? 0}
               idle={stats.idle_sessions ?? 0}
-              recording={stats.recording_now ?? 0}
+              recording={liveCount}
               total={totalBreakdown}
             />
             <div className={styles.breakdownLegend}>
-              <div className={styles.legendItem}>
-                <span className={`${styles.legendDot} ${styles.legendDotCompleted}`} />
-                <span className={styles.legendLabel}>Completed</span>
-                <span className={styles.legendVal}>{stats.completed_sessions ?? 0}</span>
-              </div>
-              {(stats.recording_now ?? 0) > 0 && (
-                <div className={styles.legendItem}>
-                  <span className={`${styles.legendDot} ${styles.legendDotRecording}`} />
-                  <span className={styles.legendLabel}>Recording</span>
-                  <span className={styles.legendVal}>{stats.recording_now}</span>
-                </div>
-              )}
-              <div className={styles.legendItem}>
-                <span className={`${styles.legendDot} ${styles.legendDotIdle}`} />
-                <span className={styles.legendLabel}>Idle</span>
-                <span className={styles.legendVal}>{stats.idle_sessions ?? 0}</span>
-              </div>
+              <LegendItem dot="completed" label="Completed" value={stats.completed_sessions ?? 0} />
+              {liveCount > 0 && <LegendItem dot="recording" label="Recording" value={liveCount} />}
+              {(stats.idle_sessions ?? 0) > 0 && <LegendItem dot="idle" label="Idle" value={stats.idle_sessions} />}
               <div className={styles.legendDivider} />
-              <div className={styles.legendItem}>
-                <span className={styles.legendLabel}>Avg Duration</span>
-                <span className={styles.legendVal}>{formatDuration(stats.avg_duration_seconds)}</span>
-              </div>
-              <div className={styles.legendItem}>
-                <span className={styles.legendLabel}>Notes Done</span>
-                <span className={styles.legendVal}>{stats.finalized_notes ?? 0}</span>
-              </div>
+              <LegendItem label="Avg Duration" value={formatDuration(stats.avg_duration_seconds)} />
+              <LegendItem label="Notes Done" value={stats.finalized_notes ?? 0} />
             </div>
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+function LegendItem({ dot, label, value }) {
+  return (
+    <div className={styles.legendItem}>
+      {dot && <span className={`${styles.legendDot} ${styles[`legendDot_${dot}`]}`} />}
+      <span className={styles.legendLabel}>{label}</span>
+      <span className={styles.legendVal}>{value}</span>
     </div>
   )
 }
