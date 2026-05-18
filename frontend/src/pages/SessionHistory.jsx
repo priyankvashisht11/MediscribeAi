@@ -44,9 +44,14 @@ function DesktopSessionHistory({ filter }) {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>
-        {filter === 'active' ? 'Active Sessions' : 'Session History'}
-      </h1>
+      <div className={styles.titleRow}>
+        <h1 className={styles.title}>
+          {filter === 'active' ? 'Active Sessions' : 'Session History'}
+        </h1>
+        {!loading && data.total > 0 && (
+          <span className={styles.countBadge}>{data.total}</span>
+        )}
+      </div>
 
       {/* Filters */}
       <div className={styles.filters}>
@@ -132,7 +137,7 @@ function DesktopSessionHistory({ filter }) {
                   <td data-label="Patient">{s.patient_name ?? '—'}</td>
                   <td data-label="Duration">{formatDuration(s.duration_seconds)}</td>
                   <td data-label="Status"><StatusChip status={s.status} /></td>
-                  <td data-label="Actions" style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                  <td data-label="Actions" className={styles.actionCell}>
                     <button
                       className={styles.viewBtn}
                       onClick={() => navigate(`/sessions/${s.id}/review`)}
