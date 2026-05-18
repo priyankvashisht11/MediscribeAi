@@ -1,12 +1,14 @@
 # backend/app/routers/patients.py
 
+import base64
 import json
 import logging
 import re
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models import ClinicalNote, Session
 from app.models.patient import Patient
+from app.models.patient_document import PatientDocument
 
 logger = logging.getLogger(__name__)
 
@@ -207,15 +210,149 @@ async def get_patient_sessions(
     return {"items": items, "total": len(items)}
 
 
-@router.get("/{patient_id}/analysis")
-async def get_patient_analysis(
+@router.post("/{patient_id}/documents")
+async def upload_document(
+    patient_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    file: UploadFile = File(...),
+    doc_type: str = Form("other"),
+    description: str = Form(""),
+):
+    clinic_id = _get_clinic_id(request)
+    patient = await db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    MAX_SIZE = 10 * 1024 * 1024  # 10MB
+    file_data = await file.read()
+    if len(file_data) > MAX_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum 10MB.")
+
+    doctor_id = getattr(request.state, "doctor_id", None)
+
+    doc = PatientDocument(
+        patient_id=patient_id,
+        clinic_id=clinic_id,
+        uploaded_by=doctor_id,
+        filename=file.filename,
+        doc_type=doc_type,
+        description=description.strip() or None,
+        content_type=file.content_type,
+        file_size=len(file_data),
+        file_data=file_data,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+
+    # Invalidate analysis cache so the "new documents" flag fires
+    try:
+        from app.services.redis_client import get_client
+        redis = get_client()
+        await redis.delete(f"patient_analysis:{patient_id}")
+    except Exception:
+        pass
+
+    return _doc_meta(doc)
+
+
+@router.get("/{patient_id}/documents")
+async def list_documents(
     patient_id: UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
+    clinic_id = _get_clinic_id(request)
+    patient = await db.get(Patient, patient_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if clinic_id and patient.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    result = await db.execute(
+        select(PatientDocument)
+        .where(PatientDocument.patient_id == patient_id)
+        .order_by(PatientDocument.uploaded_at.desc())
+    )
+    docs = result.scalars().all()
+    return {"items": [_doc_meta(d) for d in docs]}
+
+
+@router.get("/{patient_id}/documents/{doc_id}/download")
+async def download_document(
+    patient_id: UUID,
+    doc_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(request)
+    doc = await db.get(PatientDocument, doc_id)
+    if not doc or doc.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if clinic_id and doc.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    return Response(
+        content=doc.file_data,
+        media_type=doc.content_type or "application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{doc.filename}"'},
+    )
+
+
+@router.delete("/{patient_id}/documents/{doc_id}")
+async def delete_document(
+    patient_id: UUID,
+    doc_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(request)
+    doc = await db.get(PatientDocument, doc_id)
+    if not doc or doc.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if clinic_id and doc.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    await db.delete(doc)
+    await db.commit()
+
+    # Invalidate analysis cache
+    try:
+        from app.services.redis_client import get_client
+        redis = get_client()
+        await redis.delete(f"patient_analysis:{patient_id}")
+    except Exception:
+        pass
+
+    return {"deleted": True, "doc_id": str(doc_id)}
+
+
+def _doc_meta(d: PatientDocument) -> dict:
+    return {
+        "id": str(d.id),
+        "filename": d.filename,
+        "doc_type": d.doc_type,
+        "description": d.description,
+        "content_type": d.content_type,
+        "file_size": d.file_size,
+        "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
+        "uploaded_by": str(d.uploaded_by) if d.uploaded_by else None,
+    }
+
+
+@router.get("/{patient_id}/analysis")
+async def get_patient_analysis(
+    patient_id: UUID,
+    request: Request,
+    force: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
     """
-    Generate longitudinal health analysis for a patient using all finalized notes.
-    Results are cached in Redis for 1 hour.
+    Longitudinal health analysis using finalized notes + uploaded documents.
+    Cached in Redis for 1 hour. Pass ?force=true to bypass cache and re-run.
     """
     clinic_id = _get_clinic_id(request)
     patient = await db.get(Patient, patient_id)
@@ -226,39 +363,58 @@ async def get_patient_analysis(
 
     cache_key = f"patient_analysis:{patient_id}"
 
-    # Try cache first
-    try:
-        from app.services.redis_client import get_client
-        redis = get_client()
-        cached = await redis.get(cache_key)
-        if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
+    # Try cache first (skip if force=true)
+    if not force:
+        try:
+            from app.services.redis_client import get_client
+            redis = get_client()
+            cached = await redis.get(cache_key)
+            if cached:
+                cached_data = json.loads(cached)
+                # Check if new documents uploaded since analysis was generated
+                generated_at_str = cached_data.get("generated_at")
+                if generated_at_str:
+                    generated_at = datetime.fromisoformat(generated_at_str)
+                    latest_doc = (await db.execute(
+                        select(PatientDocument.uploaded_at)
+                        .where(PatientDocument.patient_id == patient_id)
+                        .order_by(PatientDocument.uploaded_at.desc())
+                        .limit(1)
+                    )).scalar_one_or_none()
+                    cached_data["new_documents_since_analysis"] = bool(
+                        latest_doc and latest_doc > generated_at
+                    )
+                return cached_data
+        except Exception:
+            pass
 
-    # Fetch all finalized notes for this patient
+    # Fetch finalized notes
     notes_q = (
         select(ClinicalNote, Session)
         .join(Session, ClinicalNote.session_id == Session.id)
-        .where(
-            Session.patient_id == patient_id,
-            ClinicalNote.is_finalized == True,
-        )
+        .where(Session.patient_id == patient_id, ClinicalNote.is_finalized == True)
     )
     if clinic_id:
         notes_q = notes_q.where(Session.clinic_id == clinic_id)
-    result = await db.execute(notes_q.order_by(Session.created_at.asc()))
-    rows = result.all()
+    rows = (await db.execute(notes_q.order_by(Session.created_at.asc()))).all()
 
-    if not rows:
+    # Fetch uploaded documents
+    doc_rows = (await db.execute(
+        select(PatientDocument)
+        .where(PatientDocument.patient_id == patient_id)
+        .order_by(PatientDocument.uploaded_at.asc())
+    )).scalars().all()
+
+    if not rows and not doc_rows:
         return {
             "patient_id": str(patient_id),
             "status": "no_data",
             "message": "No finalized notes found for this patient.",
             "analysis": None,
+            "new_documents_since_analysis": False,
         }
 
-    # Build visit history summary for LLM
+    # Build visit history
     visits = []
     last_vitals = None
     for note, session in rows:
@@ -281,6 +437,16 @@ async def get_patient_analysis(
         for i, v in enumerate(visits)
     ])
 
+    # Build documents section for prompt
+    doc_summary = ""
+    if doc_rows:
+        doc_lines = []
+        for i, d in enumerate(doc_rows):
+            uploaded = d.uploaded_at.strftime("%d %b %Y") if d.uploaded_at else "Unknown"
+            desc = f" — {d.description}" if d.description else ""
+            doc_lines.append(f"{i+1}. {d.doc_type.replace('_', ' ').title()} | {d.filename} ({uploaded}){desc}")
+        doc_summary = f"\n\nUPLOADED DOCUMENTS ({len(doc_rows)} files):\n" + "\n".join(doc_lines)
+
     patient_context = f"""Patient: {patient.name}, Age: {patient.age or 'Unknown'}, Gender: {patient.gender or 'Unknown'}
 Known Allergies: {patient.known_allergies or 'None documented'}
 Chronic Conditions: {patient.chronic_conditions or 'None documented'}
@@ -291,16 +457,17 @@ Blood Group: {patient.blood_group or 'Unknown'}"""
 {patient_context}
 
 VISIT HISTORY ({len(visits)} visits):
-{visit_summary}
+{visit_summary}{doc_summary}
 
 Generate a structured health analysis in JSON with these exact keys:
 {{
-  "summary": "2-3 sentence overall health narrative",
+  "summary": "2-3 sentence overall health narrative incorporating visits and any uploaded documents",
   "recurring_issues": ["list of conditions seen in multiple visits"],
   "trend": "improving | stable | worsening | mixed",
   "risk_flags": ["list of clinical concerns worth monitoring"],
   "recommended_screenings": ["list of age/history-appropriate screenings"],
   "medication_patterns": ["patterns in prescriptions across visits"],
+  "document_insights": ["key observations from uploaded documents, empty list if none"],
   "data_confidence": "high | medium | low",
   "last_vitals_summary": "brief summary of last recorded vitals or null"
 }}
@@ -319,26 +486,22 @@ Respond ONLY with valid JSON. No explanation, no markdown fences."""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "sonar-reasoning-pro",
+                    "model": "r1-1776",
                     "messages": [
                         {"role": "system", "content": "You are a clinical AI assistant. Always respond with valid JSON only."},
                         {"role": "user", "content": prompt},
                     ],
-                    "max_tokens": 1024,
+                    "max_tokens": 1500,
                     "temperature": 0.1,
                 },
             )
             resp.raise_for_status()
             raw = resp.json()["choices"][0]["message"]["content"]
 
-        # Strip think tokens from sonar-reasoning-pro
         raw = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
-
-        # Extract JSON if wrapped in markdown fences
         json_match = re.search(r"\{.*\}", raw, re.DOTALL)
         if json_match:
             raw = json_match.group(0)
-
         analysis_data = json.loads(raw)
 
     except Exception as e:
@@ -350,6 +513,7 @@ Respond ONLY with valid JSON. No explanation, no markdown fences."""
             "risk_flags": [],
             "recommended_screenings": [],
             "medication_patterns": [],
+            "document_insights": [],
             "data_confidence": "low",
             "last_vitals_summary": last_vitals,
             "error": str(e),
@@ -359,9 +523,11 @@ Respond ONLY with valid JSON. No explanation, no markdown fences."""
         "patient_id": str(patient_id),
         "status": "ready",
         "visit_count": len(visits),
+        "document_count": len(doc_rows),
         "analysis": analysis_data,
         "last_vitals": last_vitals,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "new_documents_since_analysis": False,
     }
 
     # Cache for 1 hour

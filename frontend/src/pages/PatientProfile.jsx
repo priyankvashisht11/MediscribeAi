@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { patientsApi } from '../services/api'
 import HealthAnalysisPanel from '../components/HealthAnalysisPanel'
+import DocumentsPanel from '../components/DocumentsPanel'
 import { Edit2, Save, X, ExternalLink, Plus } from 'lucide-react'
 import MobilePatientProfile from './MobilePatientProfile'
 
@@ -142,6 +143,7 @@ function DesktopPatientProfile() {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(null)
+  const [newDocumentUploaded, setNewDocumentUploaded] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -394,11 +396,23 @@ function DesktopPatientProfile() {
           )}
         </div>
 
-        {/* RIGHT — Visit timeline + Health analysis */}
+        {/* RIGHT — Visit timeline + Health analysis + Documents */}
         <div>
           {/* Health analysis */}
           <div style={{ marginBottom: 'var(--space-6)' }}>
-            <HealthAnalysisPanel patientId={patientId} visitCount={patient.visit_count} />
+            <HealthAnalysisPanel
+              patientId={patientId}
+              visitCount={patient.visit_count}
+              newDocumentFlag={newDocumentUploaded}
+            />
+          </div>
+
+          {/* Documents */}
+          <div style={{ marginBottom: 'var(--space-6)' }}>
+            <DocumentsPanel
+              patientId={patientId}
+              onDocumentChange={() => setNewDocumentUploaded(true)}
+            />
           </div>
 
           {/* Visit timeline */}

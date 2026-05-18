@@ -6,5 +6,6 @@ from app.models.patient import Patient
 from app.models.session import Session
 from app.models.transcript import Transcript
 from app.models.note import ClinicalNote, NoteAuditLog
+from app.models.patient_document import PatientDocument
 
-__all__ = ["Clinic", "ClinicInvite", "Doctor", "Patient", "Session", "Transcript", "ClinicalNote", "NoteAuditLog"]
+__all__ = ["Clinic", "ClinicInvite", "Doctor", "Patient", "Session", "Transcript", "ClinicalNote", "NoteAuditLog", "PatientDocument"]
