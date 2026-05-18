@@ -197,11 +197,43 @@ async def _backfill_clinic_id() -> None:
     print("[Startup] clinic_id backfill complete.", flush=True)
 
 
+async def _migrate_patient_documents() -> None:
+    """Create patient_documents table and ai_analyzed column if they don't exist."""
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("""
+            CREATE TABLE IF NOT EXISTS patient_documents (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                patient_id UUID NOT NULL REFERENCES patients(id),
+                clinic_id UUID REFERENCES clinics(id),
+                uploaded_by UUID REFERENCES doctors(id),
+                filename VARCHAR(255) NOT NULL,
+                doc_type VARCHAR(50) NOT NULL DEFAULT 'other',
+                description TEXT,
+                ai_analyzed BOOLEAN NOT NULL DEFAULT FALSE,
+                content_type VARCHAR(100),
+                file_size INTEGER,
+                file_data BYTEA NOT NULL,
+                uploaded_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """))
+        await db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_patient_documents_patient_id ON patient_documents(patient_id)"
+        ))
+        # Add ai_analyzed if missing (for existing deployments)
+        await db.execute(text("""
+            ALTER TABLE patient_documents
+            ADD COLUMN IF NOT EXISTS ai_analyzed BOOLEAN NOT NULL DEFAULT FALSE
+        """))
+        await db.commit()
+    print("[Startup] patient_documents table ready.", flush=True)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     await _migrate_sprint9_columns()
     await _migrate_sprint10_schema()
+    await _migrate_patient_documents()
     await _seed_demo_clinic()
     await _backfill_clinic_id()
 

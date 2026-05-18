@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -20,6 +20,7 @@ class PatientDocument(Base):
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     doc_type: Mapped[str] = mapped_column(String(50), nullable=False, default="other")
     description: Mapped[str] = mapped_column(Text, nullable=True)
+    ai_analyzed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     content_type: Mapped[str] = mapped_column(String(100), nullable=True)
     file_size: Mapped[int] = mapped_column(Integer, nullable=True)
     file_data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
