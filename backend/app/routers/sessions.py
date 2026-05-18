@@ -161,10 +161,12 @@ async def get_session_stats(
 @router.get("/active", response_model=list[SessionResponse])
 async def get_active_sessions(request: Request, db: AsyncSession = Depends(get_db)):
     clinic_id = _get_clinic_id(request)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=2)
     query = (
         select(Session, Patient)
         .join(Patient, Session.patient_id == Patient.id, isouter=True)
         .where(Session.status.in_(["recording", "idle"]))
+        .where(Session.started_at >= cutoff)
         .order_by(Session.created_at.desc())
     )
     if clinic_id:
@@ -447,3 +449,33 @@ async def correct_speaker(
     chunk.speaker = body.speaker
     await db.commit()
     return {"id": str(chunk_id), "speaker": body.speaker, "updated": True}
+
+
+@router.delete("/{session_id}")
+async def kill_session(
+    session_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Hard-delete a session and all associated data (transcript, note, audit logs)."""
+    from sqlalchemy import delete as sql_delete
+    from app.models import ClinicalNote, NoteAuditLog
+
+    clinic_id = _get_clinic_id(request)
+    session = await db.get(Session, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if clinic_id and session.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Delete in dependency order: audit logs → note → transcripts → session
+    note_result = await db.execute(select(ClinicalNote).where(ClinicalNote.session_id == session_id))
+    note = note_result.scalar_one_or_none()
+    if note:
+        await db.execute(sql_delete(NoteAuditLog).where(NoteAuditLog.note_id == note.id))
+        await db.delete(note)
+
+    await db.execute(sql_delete(Transcript).where(Transcript.session_id == session_id))
+    await db.delete(session)
+    await db.commit()
+    return {"deleted": True, "session_id": str(session_id)}

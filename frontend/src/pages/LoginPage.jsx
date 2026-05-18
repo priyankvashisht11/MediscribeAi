@@ -90,7 +90,7 @@ export default function LoginPage({ onSuccess }) {
 
         <div className={styles.links}>
           <p className={styles.linkText}>
-            New clinic?{' '}
+            New here?{' '}
             <button className={styles.link} onClick={() => navigate('/signup')} type="button">
               Create account
             </button>

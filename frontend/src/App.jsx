@@ -98,6 +98,9 @@ function useAuth() {
     authed,
     checking,
     onSuccess: () => {
+      // Reset URL to / before swapping routers — prevents the authed tree
+      // from briefly rendering <NotFound> because /login has no matching route.
+      window.history.replaceState(null, '', '/')
       setAuthed(true)
       setChecking(false)
     },
