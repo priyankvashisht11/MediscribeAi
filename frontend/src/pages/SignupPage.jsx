@@ -37,7 +37,12 @@ export default function SignupPage({ onSuccess }) {
     <div className={styles.overlay}>
       <div className={styles.card}>
         <div>
-          <div className={styles.logo}>Chartr</div>
+          <div
+            className={styles.logo}
+            onClick={() => navigate('/')}
+            style={{ cursor: 'pointer' }}
+            title="Back to home"
+          >Chartr</div>
           <p className={styles.sub}>Create your clinic account</p>
         </div>
 

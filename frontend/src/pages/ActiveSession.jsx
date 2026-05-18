@@ -154,6 +154,7 @@ export default function ActiveSession() {
   const [note, setNote] = useState(null)
   const [noteFields, setNoteFields] = useState({})
   const [ending, setEnding] = useState(false)
+  const [killing, setKilling] = useState(false)
   const [showEndModal, setShowEndModal] = useState(false)
 
   const speakerMapEstablished = transcriptChunks.some(
@@ -230,6 +231,21 @@ export default function ActiveSession() {
     }
     try { stopCapture() } catch (_) {}
     navigate(`/sessions/${sessionId}/review`)
+  }
+
+  const handleKillSession = async (andNew = false) => {
+    setKilling(true)
+    setShowEndModal(false)
+    try { stopCapture() } catch (_) {}
+    try {
+      await apiFetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
+      clearTranscript()
+      addToast({ type: 'success', message: 'Session deleted.' })
+    } catch (e) {
+      addToast({ type: 'warning', message: 'Could not delete session from server.' })
+    }
+    if (andNew) navigate('/sessions/new')
+    else navigate('/')
   }
 
   // Flip all speaker labels live (in-memory only — DB flip happens post-session via TranscriptViewer)
@@ -469,11 +485,29 @@ export default function ActiveSession() {
               <button
                 className={styles.endBtn}
                 onClick={handleEndSession}
-                disabled={ending}
+                disabled={ending || killing}
                 style={{ flex: 1 }}
               >
                 <Square size={13} fill="currentColor" />
                 {ending ? 'Ending…' : 'End & Generate Note'}
+              </button>
+            </div>
+            <div style={{ display: 'flex', gap: 'var(--space-3)', borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-3)' }}>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => handleKillSession(false)}
+                disabled={ending || killing}
+                style={{ flex: 1, color: 'var(--color-error, #dc2626)', opacity: killing ? 0.6 : 1 }}
+              >
+                {killing ? 'Terminating…' : 'Terminate Session'}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => handleKillSession(true)}
+                disabled={ending || killing}
+                style={{ flex: 1, color: 'var(--color-error, #dc2626)', opacity: killing ? 0.6 : 1 }}
+              >
+                Terminate & Start New
               </button>
             </div>
           </div>

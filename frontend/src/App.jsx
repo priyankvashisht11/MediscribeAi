@@ -101,6 +101,7 @@ function useAuth() {
     authed,
     checking,
     onSuccess: () => {
+      window.history.replaceState(null, '', '/')
       setAuthed(true)
       setChecking(false)
     },

@@ -41,6 +41,7 @@ async function logout() {
   await authApi.logout()
   await removeToken()
   useDoctorStore.getState().clearDoctor()
+  window.history.replaceState(null, '', '/')
   window.dispatchEvent(new Event('chartr_auth_change'))
 }
 
