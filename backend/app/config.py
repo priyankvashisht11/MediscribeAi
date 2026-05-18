@@ -67,5 +67,11 @@ class Settings(BaseSettings):
     from_email: str = "noreply@chartr.in"
     # Must be a verified sender domain in Resend
 
+    # ── Vision AI (medical image + PDF analysis) ───────────────────────────────
+    gemini_api_key: str = ""
+    # Free tier: 1,500 req/day, 0 cost. Model: gemini-1.5-flash
+    # Get key: https://aistudio.google.com/apikey (free Google account, takes 1 min)
+    # Set via: flyctl secrets set GEMINI_API_KEY=AIza... --app mediscribe-api
+
 
 settings = Settings()

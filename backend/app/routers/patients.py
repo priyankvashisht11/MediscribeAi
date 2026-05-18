@@ -232,6 +232,25 @@ async def upload_document(
         raise HTTPException(status_code=413, detail="File too large. Maximum 10MB.")
 
     doctor_id = getattr(request.state, "doctor_id", None)
+    manual_description = description.strip() or None
+
+    # Run AI vision analysis if no manual description provided
+    ai_description = None
+    ai_analyzed = False
+    if not manual_description:
+        try:
+            from app.services.vision_analyzer import analyze_medical_file
+            from app.config import settings as _s
+            ai_description = await analyze_medical_file(
+                file_data=file_data,
+                filename=file.filename or "",
+                content_type=file.content_type or "",
+                api_key=_s.gemini_api_key,
+            )
+            if ai_description:
+                ai_analyzed = True
+        except Exception as e:
+            logger.warning(f"Vision analysis error on upload: {e}")
 
     doc = PatientDocument(
         patient_id=patient_id,
@@ -239,7 +258,8 @@ async def upload_document(
         uploaded_by=doctor_id,
         filename=file.filename,
         doc_type=doc_type,
-        description=description.strip() or None,
+        description=manual_description or ai_description,
+        ai_analyzed=ai_analyzed,
         content_type=file.content_type,
         file_size=len(file_data),
         file_data=file_data,
@@ -302,6 +322,32 @@ async def download_document(
     )
 
 
+@router.patch("/{patient_id}/documents/{doc_id}")
+async def update_document(
+    patient_id: UUID,
+    doc_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    clinic_id = _get_clinic_id(request)
+    doc = await db.get(PatientDocument, doc_id)
+    if not doc or doc.patient_id != patient_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if clinic_id and doc.clinic_id != clinic_id:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    body = await request.json()
+    if "description" in body:
+        doc.description = (body["description"] or "").strip() or None
+        doc.ai_analyzed = False  # doctor edited — no longer AI-only
+    if "doc_type" in body:
+        doc.doc_type = body["doc_type"]
+
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_meta(doc)
+
+
 @router.delete("/{patient_id}/documents/{doc_id}")
 async def delete_document(
     patient_id: UUID,
@@ -336,6 +382,7 @@ def _doc_meta(d: PatientDocument) -> dict:
         "filename": d.filename,
         "doc_type": d.doc_type,
         "description": d.description,
+        "ai_analyzed": d.ai_analyzed,
         "content_type": d.content_type,
         "file_size": d.file_size,
         "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,

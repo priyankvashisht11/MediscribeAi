@@ -1,11 +1,14 @@
 import { useState, useRef } from 'react'
-import { FileText, Image, FlaskConical, Pill, Paperclip, Upload, Trash2, Download, AlertCircle } from 'lucide-react'
+import {
+  FileText, Image, FlaskConical, Pill, Paperclip,
+  Upload, Trash2, Download, AlertCircle, Sparkles, Pencil, Check, X,
+} from 'lucide-react'
 import { apiFetch } from '../utils/apiFetch'
 
 const DOC_TYPES = [
-  { value: 'xray',         label: 'X-Ray' },
+  { value: 'xray',         label: 'X-Ray / Radiograph' },
   { value: 'lab_report',   label: 'Lab Report' },
-  { value: 'scan',         label: 'Scan / MRI / CT' },
+  { value: 'scan',         label: 'Scan (MRI / CT / USG)' },
   { value: 'prescription', label: 'Outside Prescription' },
   { value: 'other',        label: 'Other' },
 ]
@@ -28,8 +31,7 @@ const TYPE_COLOR = {
 
 function formatBytes(bytes) {
   if (!bytes) return ''
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
@@ -38,16 +40,200 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+function DocCard({ doc, patientId, onDelete, onUpdate }) {
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState(doc.description || '')
+  const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const color = TYPE_COLOR[doc.doc_type] || '#64748b'
+
+  const handleSaveEdit = async () => {
+    setSaving(true)
+    try {
+      const res = await apiFetch(`/api/patients/${patientId}/documents/${doc.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ description: editText }),
+      })
+      const updated = await res.json()
+      onUpdate(updated)
+      setEditing(false)
+    } catch {
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    try {
+      await apiFetch(`/api/patients/${patientId}/documents/${doc.id}`, { method: 'DELETE' })
+      onDelete(doc.id)
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const handleDownload = () => {
+    const base = import.meta.env.VITE_API_URL || ''
+    const token = localStorage.getItem('chartr_token')
+    fetch(`${base}/api/patients/${patientId}/documents/${doc.id}/download`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = doc.filename
+        a.click()
+        URL.revokeObjectURL(url)
+      })
+  }
+
+  return (
+    <div style={{
+      borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)',
+      marginBottom: 'var(--space-2)', background: 'var(--color-surface-2)',
+      overflow: 'hidden',
+    }}>
+      {/* Top row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                    padding: 'var(--space-3)' }}>
+        {/* Type icon */}
+        <div style={{
+          width: 32, height: 32, borderRadius: 'var(--radius-sm)', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: color + '18', color,
+        }}>
+          {TYPE_ICON[doc.doc_type] || <FileText size={14} />}
+        </div>
+
+        {/* Filename + meta */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{
+              fontSize: 'var(--text-sm)', fontWeight: 500,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              maxWidth: 180,
+            }}>
+              {doc.filename}
+            </span>
+            <span style={{
+              fontSize: '10px', padding: '1px 6px', borderRadius: 'var(--radius-full)',
+              background: color + '18', color, fontWeight: 600,
+            }}>
+              {DOC_TYPES.find(t => t.value === doc.doc_type)?.label || doc.doc_type}
+            </span>
+            {doc.ai_analyzed && (
+              <span style={{
+                fontSize: '10px', padding: '1px 6px', borderRadius: 'var(--radius-full)',
+                background: '#f0f9ff', color: '#0369a1', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}>
+                <Sparkles size={9} /> AI
+              </span>
+            )}
+          </div>
+          <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>
+            {formatDate(doc.uploaded_at)} · {formatBytes(doc.file_size)}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => { setEditing(!editing); setEditText(doc.description || '') }}
+            title="Edit description"
+            style={{ padding: '4px 6px', color: editing ? 'var(--color-primary)' : undefined }}
+          >
+            <Pencil size={12} />
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleDownload}
+            title="Download"
+            style={{ padding: '4px 6px' }}
+          >
+            <Download size={12} />
+          </button>
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Delete"
+            style={{ padding: '4px 6px', color: 'var(--color-error)' }}
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
+      </div>
+
+      {/* Description row */}
+      {(doc.description || editing) && (
+        <div style={{
+          borderTop: '1px solid var(--color-border)',
+          padding: 'var(--space-2) var(--space-3)',
+          background: doc.ai_analyzed && !editing ? '#f8fafc' : undefined,
+        }}>
+          {editing ? (
+            <div>
+              <textarea
+                value={editText}
+                onChange={e => setEditText(e.target.value)}
+                placeholder="Describe the clinical findings…"
+                style={{
+                  width: '100%', fontSize: 'var(--text-xs)', resize: 'vertical',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                  padding: 'var(--space-2)', background: 'var(--color-surface)',
+                  color: 'var(--color-text)', boxSizing: 'border-box', height: 72,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSaveEdit}
+                  disabled={saving}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Check size={11} /> {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setEditing(false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <X size={11} /> Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p style={{
+              fontSize: 'var(--text-xs)', color: 'var(--color-text)', lineHeight: 1.5,
+              margin: 0,
+            }}>
+              {doc.ai_analyzed && (
+                <span style={{ color: '#0369a1', fontWeight: 600, marginRight: 4 }}>AI:</span>
+              )}
+              {doc.description}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DocumentsPanel({ patientId, onDocumentChange }) {
   const [docs, setDocs] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [uploadStage, setUploadStage] = useState(null) // null | 'uploading' | 'analyzing'
   const [showUpload, setShowUpload] = useState(false)
   const [uploadForm, setUploadForm] = useState({ doc_type: 'lab_report', description: '' })
   const [uploadFile, setUploadFile] = useState(null)
   const [uploadError, setUploadError] = useState(null)
-  const [deleting, setDeleting] = useState(null)
   const fileRef = useRef()
 
   const load = async () => {
@@ -58,7 +244,7 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
       const res = await apiFetch(`/api/patients/${patientId}/documents`)
       const data = await res.json()
       setDocs(data.items || [])
-    } catch (e) {
+    } catch {
       setError('Failed to load documents')
     } finally {
       setLoading(false)
@@ -72,6 +258,12 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
     if (!uploadFile) return
     setUploading(true)
     setUploadError(null)
+
+    const isImage = uploadFile.type.startsWith('image/')
+    const isPdf = uploadFile.type === 'application/pdf' || uploadFile.name.endsWith('.pdf')
+    const willAnalyze = (isImage || isPdf) && !uploadForm.description.trim()
+    setUploadStage(willAnalyze ? 'analyzing' : 'uploading')
+
     try {
       const form = new FormData()
       form.append('file', uploadFile)
@@ -87,48 +279,27 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || 'Upload failed')
       }
+      const newDoc = await res.json()
+      setDocs(d => [newDoc, ...(d || [])])
       setShowUpload(false)
       setUploadFile(null)
       setUploadForm({ doc_type: 'lab_report', description: '' })
-      await load()
       onDocumentChange?.()
     } catch (e) {
       setUploadError(e.message)
     } finally {
       setUploading(false)
+      setUploadStage(null)
     }
   }
 
-  const handleDelete = async (docId) => {
-    setDeleting(docId)
-    try {
-      await apiFetch(`/api/patients/${patientId}/documents/${docId}`, { method: 'DELETE' })
-      setDocs(d => d.filter(x => x.id !== docId))
-      onDocumentChange?.()
-    } catch {
-    } finally {
-      setDeleting(null)
-    }
+  const handleDelete = (docId) => {
+    setDocs(d => d.filter(x => x.id !== docId))
+    onDocumentChange?.()
   }
 
-  const handleDownload = (doc) => {
-    const base = import.meta.env.VITE_API_URL || ''
-    const token = localStorage.getItem('chartr_token')
-    const url = `${base}/api/patients/${patientId}/documents/${doc.id}/download`
-    const a = document.createElement('a')
-    a.href = url
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    // attach token via fetch → blob URL since API requires auth
-    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.blob())
-      .then(blob => {
-        const blobUrl = URL.createObjectURL(blob)
-        a.href = blobUrl
-        a.download = doc.filename
-        a.click()
-        URL.revokeObjectURL(blobUrl)
-      })
+  const handleUpdate = (updated) => {
+    setDocs(d => d.map(x => x.id === updated.id ? updated : x))
   }
 
   return (
@@ -187,7 +358,6 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
                 borderRadius: 'var(--radius-md)', padding: 'var(--space-4)',
                 textAlign: 'center', cursor: 'pointer',
                 background: uploadFile ? 'var(--color-primary-light)' : 'transparent',
-                transition: 'all 0.15s',
               }}
             >
               {uploadFile ? (
@@ -196,28 +366,44 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
                 </span>
               ) : (
                 <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-                  Click to select file (PDF, JPG, PNG — max 10MB)
+                  Click to select — PDF, JPG, PNG (max 10MB)
                 </span>
               )}
             </div>
             <input
               ref={fileRef}
               type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.heic"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
               style={{ display: 'none' }}
               onChange={e => setUploadFile(e.target.files?.[0] || null)}
             />
           </div>
 
+          {/* AI analysis notice */}
+          {uploadFile && !uploadForm.description.trim() && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: '#f0f9ff', borderRadius: 'var(--radius-sm)',
+              padding: 'var(--space-2) var(--space-3)', marginBottom: 'var(--space-3)',
+              border: '1px solid #bae6fd',
+            }}>
+              <Sparkles size={12} style={{ color: '#0369a1', flexShrink: 0 }} />
+              <span style={{ fontSize: 'var(--text-xs)', color: '#0369a1' }}>
+                AI will analyze this file automatically. You can add your own notes below to override.
+              </span>
+            </div>
+          )}
+
           <div style={{ marginBottom: 'var(--space-3)' }}>
             <label style={labelStyle}>
-              Description <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(helps AI analysis)</span>
+              Your notes{' '}
+              <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(optional — AI auto-fills if blank)</span>
             </label>
             <textarea
               value={uploadForm.description}
               onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="e.g. CBC report — Hb 9.2, WBC 11.5k. Chest X-ray — mild bilateral infiltrates."
-              style={{ ...inputStyle, height: 64, resize: 'vertical' }}
+              placeholder="Add your own observations, or leave blank for AI analysis…"
+              style={{ ...inputStyle, height: 56, resize: 'vertical' }}
             />
           </div>
 
@@ -234,14 +420,21 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
               type="submit"
               className="btn btn-primary btn-sm"
               disabled={uploading || !uploadFile}
-              style={{ flex: 1 }}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
-              {uploading ? 'Uploading…' : 'Upload Document'}
+              {uploadStage === 'analyzing' ? (
+                <><Sparkles size={12} className="spin" /> AI Analyzing…</>
+              ) : uploading ? (
+                'Uploading…'
+              ) : (
+                <><Upload size={12} /> Upload</>
+              )}
             </button>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => { setShowUpload(false); setUploadFile(null); setUploadError(null) }}
+              disabled={uploading}
             >
               Cancel
             </button>
@@ -249,15 +442,13 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
         </form>
       )}
 
-      {/* Document list */}
+      {/* List */}
       {loading && (
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)',
                     textAlign: 'center', padding: 'var(--space-4)' }}>Loading…</p>
       )}
       {error && (
-        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-error)', padding: 'var(--space-2)' }}>
-          {error}
-        </p>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--color-error)', padding: 'var(--space-2)' }}>{error}</p>
       )}
       {docs && docs.length === 0 && !showUpload && (
         <div style={{
@@ -266,79 +457,20 @@ export default function DocumentsPanel({ patientId, onDocumentChange }) {
           border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)',
         }}>
           <Paperclip size={20} style={{ marginBottom: 8, opacity: 0.4 }} />
-          <p>No documents yet.</p>
-          <p style={{ fontSize: 'var(--text-xs)', marginTop: 4 }}>
-            Upload X-rays, lab reports, or scans to include them in AI analysis.
+          <p style={{ margin: 0 }}>No documents yet.</p>
+          <p style={{ fontSize: 'var(--text-xs)', marginTop: 4, margin: '4px 0 0' }}>
+            Upload X-rays, lab reports, or scans — AI will analyze them automatically.
           </p>
         </div>
       )}
       {docs && docs.map(doc => (
-        <div key={doc.id} style={{
-          display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)',
-          padding: 'var(--space-3)', borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--color-border)', marginBottom: 'var(--space-2)',
-          background: 'var(--color-surface-2)',
-        }}>
-          {/* Type icon */}
-          <div style={{
-            width: 32, height: 32, borderRadius: 'var(--radius-sm)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: TYPE_COLOR[doc.doc_type] + '18',
-            color: TYPE_COLOR[doc.doc_type], flexShrink: 0,
-          }}>
-            {TYPE_ICON[doc.doc_type] || <FileText size={14} />}
-          </div>
-
-          {/* Info */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
-                          flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 'var(--text-sm)', fontWeight: 500,
-                             overflow: 'hidden', textOverflow: 'ellipsis',
-                             whiteSpace: 'nowrap', maxWidth: 180 }}>
-                {doc.filename}
-              </span>
-              <span style={{
-                fontSize: '10px', padding: '1px 6px',
-                borderRadius: 'var(--radius-full)',
-                background: TYPE_COLOR[doc.doc_type] + '18',
-                color: TYPE_COLOR[doc.doc_type], fontWeight: 600,
-              }}>
-                {DOC_TYPES.find(t => t.value === doc.doc_type)?.label || doc.doc_type}
-              </span>
-            </div>
-            {doc.description && (
-              <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)',
-                           marginTop: 2, lineHeight: 1.4 }}>
-                {doc.description}
-              </p>
-            )}
-            <p style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: 2 }}>
-              {formatDate(doc.uploaded_at)} · {formatBytes(doc.file_size)}
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 'var(--space-1)', flexShrink: 0 }}>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => handleDownload(doc)}
-              title="View / Download"
-              style={{ padding: '4px 6px' }}
-            >
-              <Download size={13} />
-            </button>
-            <button
-              className="btn btn-ghost btn-sm"
-              onClick={() => handleDelete(doc.id)}
-              disabled={deleting === doc.id}
-              title="Delete"
-              style={{ padding: '4px 6px', color: 'var(--color-error)' }}
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
+        <DocCard
+          key={doc.id}
+          doc={doc}
+          patientId={patientId}
+          onDelete={handleDelete}
+          onUpdate={handleUpdate}
+        />
       ))}
     </div>
   )

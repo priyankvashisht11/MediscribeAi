@@ -19,6 +19,9 @@ bcrypt==3.2.2
 fpdf2==2.7.9
 jinja2==3.1.4
 
+# PDF text extraction (for lab report analysis)
+pypdf==4.3.1
+
 # LLM / Note Generation
 langchain==0.3.25
 langchain-openai==0.3.16
