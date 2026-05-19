@@ -8,20 +8,8 @@ import styles from './PatientDirectory.module.css'
 
 const isMobile = Capacitor.isNativePlatform() || window.innerWidth <= 768
 
-const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #0d7f84 0%, #27a3a8 100%)',  /* teal — brand family */
-  'linear-gradient(135deg, #2a6b8a 0%, #4090b0 100%)',  /* ocean blue */
-  'linear-gradient(135deg, #3d7a58 0%, #5a9e74 100%)',  /* sage green */
-  'linear-gradient(135deg, #9e6e2a 0%, #c28e45 100%)',  /* warm amber */
-  'linear-gradient(135deg, #9a5050 0%, #be7070 100%)',  /* dusty rose */
-  'linear-gradient(135deg, #4a6480 0%, #6280a0 100%)',  /* slate blue */
-  'linear-gradient(135deg, #6a7a3a 0%, #8aa050 100%)',  /* olive */
-  'linear-gradient(135deg, #7a5a3a 0%, #a07856 100%)',  /* terracotta */
-]
-
-function avatarGradient(name) {
-  const code = (name || 'A').trim().toUpperCase().charCodeAt(0)
-  return AVATAR_GRADIENTS[code % AVATAR_GRADIENTS.length]
+function avatarGradient() {
+  return 'linear-gradient(135deg, #01696f 0%, #1a8f95 100%)'
 }
 
 function genderIcon(gender) {
