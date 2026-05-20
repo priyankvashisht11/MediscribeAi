@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     # Get from: https://console.deepgram.com → Create API Key
     # Nova-3 model, Indian English, speaker diarization enabled
 
+    # ── Sarvam ASR (Saaras v3) ─────────────────────────────────────────────────
+    sarvam_api_key: str = ""
+    # Get from: https://dashboard.sarvam.ai → API Keys
+    # Set via: flyctl secrets set SARVAM_API_KEY=your_key --app mediscribe-api
+    # Saaras v3: purpose-built for Hindi/Hinglish, <150ms TTFT, ₹30/hr
+
     # CORS — comma-separated list of allowed frontend origins
     # Dev default is localhost:3000. In production set to your Vercel URL.
     # Example: ALLOWED_ORIGINS=https://chartr.vercel.app,https://chartr.yourdomain.com

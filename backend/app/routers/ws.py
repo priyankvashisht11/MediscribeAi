@@ -44,12 +44,22 @@ DEEPGRAM_URL = (
     "&filler_words=false"
 )
 
+# Sarvam Saaras v3 — Hindi/Hinglish specialist, <150ms TTFT
+# language_code=unknown = auto-detect (handles Hinglish code-switching)
+SARVAM_URL = (
+    "wss://api.sarvam.ai/speech-to-text-streaming"
+    "?language_code=unknown"
+    "&model=saaras:v3"
+    "&enable_formatting=true"
+)
+
 
 @router.websocket("/session/{session_id}")
 async def audio_stream(
     websocket: WebSocket,
     session_id: str,
     token: str | None = Query(default=None),
+    provider: str = Query(default="deepgram"),  # "deepgram" | "sarvam"
 ):
     # Auth gate: verify token from ?token= query param
     # (browsers cannot send custom headers on WebSocket upgrades)
@@ -281,8 +291,140 @@ async def audio_stream(
             except Exception:
                 pass
 
+    async def sarvam_loop() -> None:
+        """Open Sarvam Saaras v3 streaming connection and bridge PCM audio ↔ transcripts."""
+        nonlocal chunk_index
+
+        if not settings.sarvam_api_key:
+            logger.error("SARVAM_API_KEY not set — cannot start Sarvam transcription.")
+            await websocket.send_json({
+                "type": "error",
+                "message": "Sarvam not configured. Set SARVAM_API_KEY via flyctl secrets.",
+            })
+            await audio_queue.put(None)
+            return
+
+        headers = {"api-subscription-key": settings.sarvam_api_key}
+
+        try:
+            async with websockets.connect(
+                SARVAM_URL,
+                extra_headers=headers,
+                ping_interval=20,
+                ping_timeout=10,
+            ) as sv_ws:
+                logger.info(f"Session {session_id}: Sarvam connected.")
+
+                async def send_audio_sarvam() -> None:
+                    """Drain audio_queue → Sarvam WebSocket (expects raw PCM bytes)."""
+                    while True:
+                        item = await audio_queue.get()
+                        if item is None:
+                            break
+                        try:
+                            await sv_ws.send(item)
+                        except Exception as e:
+                            logger.error(f"Session {session_id}: send to Sarvam failed: {e}")
+                            break
+
+                async def receive_transcripts_sarvam() -> None:
+                    """Receive Sarvam transcript events → normalize → forward to browser."""
+                    nonlocal chunk_index
+                    async for raw_msg in sv_ws:
+                        try:
+                            # Sarvam sends binary keepalives — skip non-string frames
+                            if isinstance(raw_msg, bytes):
+                                continue
+                            msg = json.loads(raw_msg)
+                        except Exception:
+                            continue
+
+                        # Sarvam response shape: {"transcript": "...", "is_final": true, "language_code": "hi-IN"}
+                        transcript = (msg.get("transcript") or "").strip()
+                        is_final = msg.get("is_final", False)
+
+                        if not transcript or not is_final:
+                            continue
+
+                        # Sarvam streaming does not include speaker diarization —
+                        # all chunks arrive as SPEAKER_00; build_speaker_map handles assignment
+                        raw_speaker = "SPEAKER_00"
+
+                        segment = {
+                            "text": transcript,
+                            "raw_speaker": raw_speaker,
+                            "start": 0.0,
+                            "end": 0.0,
+                            "avg_logprob": -0.1,
+                        }
+                        all_segments = await append_session_segments(session_id, [segment])
+                        current_map = await get_speaker_map(session_id)
+                        new_map = build_speaker_map(
+                            all_segments, current_map,
+                            settings.speaker_assignment_window_seconds,
+                        )
+                        if new_map != current_map:
+                            await set_speaker_map(session_id, new_map)
+
+                        resolved_speaker = resolve_doctor_patient(raw_speaker, new_map)
+
+                        try:
+                            async with AsyncSessionLocal() as db:
+                                db.add(Transcript(
+                                    id=uuid.uuid4(),
+                                    session_id=uuid.UUID(session_id),
+                                    speaker=resolved_speaker,
+                                    text=transcript,
+                                    start_time_ms=0,
+                                    end_time_ms=0,
+                                    confidence=0.90,
+                                ))
+                                await db.commit()
+                        except Exception as db_err:
+                            logger.warning(f"Session {session_id}: Sarvam transcript DB write failed: {db_err}")
+
+                        chunk_index += 1
+                        try:
+                            await websocket.send_json({
+                                "type": "transcript_chunk",
+                                "session_id": session_id,
+                                "text": transcript,
+                                "speaker": resolved_speaker,
+                                "start": 0.0,
+                                "end": 0.0,
+                                "confidence": 0.90,
+                                "chunk_index": chunk_index,
+                                "provider": "sarvam",
+                            })
+                        except Exception:
+                            break
+
+                await asyncio.gather(send_audio_sarvam(), receive_transcripts_sarvam())
+
+        except websockets.exceptions.InvalidStatus as e:
+            logger.error(f"Session {session_id}: Sarvam auth failed: {e}")
+            try:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Sarvam auth failed. Check SARVAM_API_KEY.",
+                })
+            except Exception:
+                pass
+        except Exception as e:
+            logger.error(f"Session {session_id}: Sarvam connection error: {e}", exc_info=True)
+            try:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Sarvam unavailable. Please end and restart the session.",
+                })
+            except Exception:
+                pass
+
+    # Route to the selected provider
+    asr_loop = sarvam_loop if provider == "sarvam" else deepgram_loop
+
     try:
-        await asyncio.gather(receive_loop(), deepgram_loop())
+        await asyncio.gather(receive_loop(), asr_loop())
     except Exception as e:
         logger.error(f"Session {session_id}: unexpected error: {e}", exc_info=True)
     finally:

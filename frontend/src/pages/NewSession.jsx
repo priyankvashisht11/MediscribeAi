@@ -25,6 +25,7 @@ export default function NewSession() {
   const [consented, setConsented] = useState(false)
   const [consentTimestamp, setConsentTimestamp] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [provider, setProvider] = useState('deepgram')
 
   const handleConsentChange = (e) => {
     setConsented(e.target.checked)
@@ -41,7 +42,7 @@ export default function NewSession() {
         patient_age: patientAge ? parseInt(patientAge) : null,
       })
       setCurrentSession(session)
-      navigate(`/sessions/${session.id}/live`)
+      navigate(`/sessions/${session.id}/live?provider=${provider}`)
     } catch {
       addToast({ type: 'error', message: 'Failed to create session. Please try again.' })
     } finally {
@@ -155,6 +156,47 @@ export default function NewSession() {
               />
             </div>
 
+            {/* ASR Provider selector */}
+            <div className={styles.field}>
+              <span className={styles.label}>Transcription Engine</span>
+              <div className={styles.radioGroup} style={{ gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                <label
+                  className={styles.providerBtn}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
+                    padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${provider === 'deepgram' ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: provider === 'deepgram' ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                    transition: 'all 0.15s ease', minWidth: 160, flex: 1,
+                  }}
+                >
+                  <input type="radio" name="provider" value="deepgram" checked={provider === 'deepgram'}
+                    onChange={() => setProvider('deepgram')} style={{ marginTop: 3 }} />
+                  <span>
+                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Deepgram Nova-3</strong>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>English · Speaker labels · Best accuracy</span>
+                  </span>
+                </label>
+                <label
+                  className={styles.providerBtn}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
+                    padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${provider === 'sarvam' ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: provider === 'sarvam' ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                    transition: 'all 0.15s ease', minWidth: 160, flex: 1,
+                  }}
+                >
+                  <input type="radio" name="provider" value="sarvam" checked={provider === 'sarvam'}
+                    onChange={() => setProvider('sarvam')} style={{ marginTop: 3 }} />
+                  <span>
+                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Sarvam Saaras v3</strong>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Hindi · Hinglish · Code-switching</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             {/* Consent block — mandatory */}
             <div className={styles.consentBlock} role="group" aria-labelledby="consent-heading">
               <div className={styles.consentHeader}>
@@ -212,6 +254,12 @@ export default function NewSession() {
               <div className={styles.summaryRow}>
                 <span className={styles.summaryKey}>Patient</span>
                 <span className={styles.summaryVal}>{patientName}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span className={styles.summaryKey}>Engine</span>
+                <span className={styles.summaryVal}>
+                  {provider === 'sarvam' ? 'Sarvam Saaras v3 (Hindi/Hinglish)' : 'Deepgram Nova-3 (English)'}
+                </span>
               </div>
               <div className={styles.summaryRow}>
                 <span className={styles.summaryKey}>Consent given</span>

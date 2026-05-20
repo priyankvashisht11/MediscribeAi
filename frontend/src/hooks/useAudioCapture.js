@@ -22,11 +22,12 @@ function getSupportedMimeType() {
   return '' // Let browser choose
 }
 
-export function useAudioCapture({ onChunk, isConnected }) {
+export function useAudioCapture({ onChunk, isConnected, mode = 'webm' }) {
   /**
    * Props:
-   *   onChunk(blob: Blob): called every ~1s with one binary audio chunk
+   *   onChunk(blob: Blob | ArrayBuffer): called with each audio chunk
    *   isConnected: boolean — only send chunks when WebSocket is connected
+   *   mode: 'webm' (default, for Deepgram) | 'pcm' (raw s16le Int16 for Sarvam)
    *
    * Returns:
    *   micStatus:    'idle' | 'requesting' | 'granted' | 'denied' | 'recording' | 'stopped' | 'error'
@@ -40,20 +41,33 @@ export function useAudioCapture({ onChunk, isConnected }) {
 
   const streamRef = useRef(null)
   const recorderRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const processorRef = useRef(null)
   const isConnectedRef = useRef(isConnected)
   const intentionalStopRef = useRef(false)
   useEffect(() => { isConnectedRef.current = isConnected }, [isConnected])
 
   const stopCapture = useCallback(() => {
+    // Stop MediaRecorder (webm mode)
     if (recorderRef.current && recorderRef.current.state !== 'inactive') {
       recorderRef.current.stop()
     }
+    recorderRef.current = null
+
+    // Stop ScriptProcessor (pcm mode)
+    if (processorRef.current) {
+      processorRef.current.disconnect()
+      processorRef.current = null
+    }
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close()
+      audioCtxRef.current = null
+    }
+
     if (streamRef.current) {
-      // Stop all tracks — this turns off the browser microphone indicator
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
     }
-    recorderRef.current = null
     setMicStatus('stopped')
   }, [])
 
@@ -101,38 +115,60 @@ export function useAudioCapture({ onChunk, isConnected }) {
     streamRef.current = stream
     setMicStatus('granted')
 
-    // 2. Create MediaRecorder
-    const mimeType = getSupportedMimeType()
-    const recorder = new MediaRecorder(stream, {
-      ...(mimeType && { mimeType }),
-      audioBitsPerSecond: 32000,  // 32kbps — adequate for speech recognition
-    })
-    recorderRef.current = recorder
+    if (mode === 'pcm') {
+      // PCM path for Sarvam — raw s16le Int16 via ScriptProcessorNode at 16kHz
+      const audioCtx = new AudioContext({ sampleRate: 16000 })
+      audioCtxRef.current = audioCtx
+      const source = audioCtx.createMediaStreamSource(stream)
+      // 4096-sample buffer → ~256ms at 16kHz, balances latency and CPU
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1)
+      processorRef.current = processor
 
-    // 3. ondataavailable fires every 1000ms (set by timeslice in recorder.start)
-    recorder.ondataavailable = (event) => {
-      if (event.data && event.data.size > 0) {
-        if (isConnectedRef.current) {
+      processor.onaudioprocess = (e) => {
+        if (!isConnectedRef.current) return
+        const float32 = e.inputBuffer.getChannelData(0)
+        const int16 = new Int16Array(float32.length)
+        for (let i = 0; i < float32.length; i++) {
+          const s = Math.max(-1, Math.min(1, float32[i]))
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+        }
+        onChunk(int16.buffer)
+      }
+
+      source.connect(processor)
+      processor.connect(audioCtx.destination)
+      setMicStatus('recording')
+    } else {
+      // WebM path for Deepgram — MediaRecorder
+      const mimeType = getSupportedMimeType()
+      const recorder = new MediaRecorder(stream, {
+        ...(mimeType && { mimeType }),
+        audioBitsPerSecond: 32000,
+      })
+      recorderRef.current = recorder
+
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0 && isConnectedRef.current) {
           onChunk(event.data)
         }
       }
+
+      recorder.onerror = (event) => {
+        setMicStatus('error')
+        setErrorMessage(`Recording error: ${event.error?.message || 'Unknown recording error'}`)
+        stopCapture()
+      }
+
+      recorder.onstop = () => {
+        setMicStatus('stopped')
+      }
+
+      // 250ms timeslice — low latency for Deepgram streaming
+      recorder.start(250)
+      setMicStatus('recording')
     }
 
-    recorder.onerror = (event) => {
-      setMicStatus('error')
-      setErrorMessage(`Recording error: ${event.error?.message || 'Unknown recording error'}`)
-      stopCapture()
-    }
-
-    recorder.onstop = () => {
-      setMicStatus('stopped')
-    }
-
-    // 4. Start recording — ondataavailable fires every 250ms for low latency with Deepgram
-    recorder.start(250)
-    setMicStatus('recording')
-
-  }, [onChunk, stopCapture]) // ✅ isConnected removed — we use isConnectedRef inside
+  }, [onChunk, stopCapture, mode]) // ✅ isConnected removed — we use isConnectedRef inside
 
   // Auto-stop if WebSocket disconnects while recording
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { notesApi, sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
@@ -136,6 +136,8 @@ function ConfidenceBar({ score }) {
 export default function ActiveSession() {
   const { id: sessionId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const provider = searchParams.get('provider') || 'deepgram'
   const addToast = useUiStore((s) => s.addToast)
   const { transcriptChunks, wsStatus, clearTranscript, updateChunkSpeaker } = useSessionStore()
 
@@ -156,13 +158,14 @@ export default function ActiveSession() {
     clearTranscript()
   }, [sessionId, clearTranscript])
 
-  // Real WebSocket connection
-  const { sendAudioChunk, connectionError } = useSessionWs(sessionId)
+  // Real WebSocket connection — pass provider so backend routes to correct ASR
+  const { sendAudioChunk, connectionError } = useSessionWs(sessionId, provider)
 
-  // Real microphone capture — sends each chunk directly to WebSocket
+  // Real microphone capture — PCM for Sarvam, WebM for Deepgram
   const { micStatus, startCapture, stopCapture, errorMessage: micError } = useAudioCapture({
     onChunk: sendAudioChunk,
     isConnected: wsStatus === 'connected',
+    mode: provider === 'sarvam' ? 'pcm' : 'webm',
   })
 
   // Auto-start mic once WebSocket confirms connection.
@@ -262,6 +265,16 @@ export default function ActiveSession() {
                   <span className={styles.recDot} /> REC
                 </span>
               )}
+              <span style={{
+                fontSize: 'var(--text-xs)', padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+                background: provider === 'sarvam' ? '#fff3e0' : 'var(--color-primary-light)',
+                color: provider === 'sarvam' ? '#e65100' : 'var(--color-primary)',
+                border: `1px solid ${provider === 'sarvam' ? '#ffb74d' : 'var(--color-primary)'}`,
+                fontWeight: 600, letterSpacing: '0.03em',
+              }}>
+                {provider === 'sarvam' ? 'Sarvam Saaras v3' : 'Deepgram Nova-3'}
+              </span>
               {wsStatus === 'connecting' && (
                 <span className={styles.connectingBadge}>Connecting…</span>
               )}

@@ -6,7 +6,7 @@ import { useSessionStore } from '../stores/sessionStore'
 const WS_RECONNECT_DELAY_MS = 2000
 const WS_MAX_RECONNECT_ATTEMPTS = 3
 
-export function useSessionWs(sessionId) {
+export function useSessionWs(sessionId, provider = 'deepgram') {
   const wsRef = useRef(null)
   const isMountedRef = useRef(true)
   const reconnectTimerRef = useRef(null)
@@ -33,9 +33,10 @@ export function useSessionWs(sessionId) {
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
     // Browsers cannot send custom headers on WebSocket upgrades — pass JWT as query param
     const token = localStorage.getItem('chartr_token')
+    const providerParam = provider !== 'deepgram' ? `&provider=${provider}` : ''
     const wsUrl = token
-      ? `${base}/ws/session/${sessionId}?token=${encodeURIComponent(token)}`
-      : `${base}/ws/session/${sessionId}`
+      ? `${base}/ws/session/${sessionId}?token=${encodeURIComponent(token)}${providerParam}`
+      : `${base}/ws/session/${sessionId}?${providerParam ? providerParam.slice(1) : ''}`
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
@@ -140,7 +141,7 @@ export function useSessionWs(sessionId) {
       clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close(1000, 'Component unmounted')
     }
-  }, [sessionId]) // ✅ connect intentionally excluded — stable via connectRef
+  }, [sessionId, provider]) // ✅ connect intentionally excluded — stable via connectRef
 
   return { sendAudioChunk, connectionError }
 }
