@@ -8,8 +8,10 @@
 # Latency: ~200ms end-to-end vs 8-15s with local Whisper+pyannote.
 
 import asyncio
+import base64
 import json
 import logging
+import struct
 import uuid
 
 import websockets
@@ -47,10 +49,10 @@ DEEPGRAM_URL = (
 # Sarvam Saaras v3 — Hindi/Hinglish specialist, <150ms TTFT
 # language_code=unknown = auto-detect (handles Hinglish code-switching)
 SARVAM_URL = (
-    "wss://api.sarvam.ai/speech-to-text-streaming"
-    "?language_code=unknown"
+    "wss://api.sarvam.ai/speech-to-text/ws"
+    "?language-code=unknown"
     "&model=saaras:v3"
-    "&enable_formatting=true"
+    "&mode=transcribe"
 )
 
 
@@ -304,7 +306,7 @@ async def audio_stream(
             await audio_queue.put(None)
             return
 
-        headers = {"api-subscription-key": settings.sarvam_api_key}
+        headers = {"Api-Subscription-Key": settings.sarvam_api_key}
 
         try:
             async with websockets.connect(
@@ -316,34 +318,59 @@ async def audio_stream(
                 logger.info(f"Session {session_id}: Sarvam connected.")
 
                 async def send_audio_sarvam() -> None:
-                    """Drain audio_queue → Sarvam WebSocket (expects raw PCM bytes)."""
+                    """Drain audio_queue → Sarvam WebSocket.
+                    Sarvam expects JSON: {"audio": {"data": "<base64 WAV>", "sample_rate": 16000, "encoding": "audio/wav"}}
+                    Frontend sends raw Int16 PCM bytes — we wrap them in a minimal WAV header before base64-encoding.
+                    """
+                    def pcm_to_wav(pcm: bytes) -> bytes:
+                        n = len(pcm)
+                        return struct.pack('<4sI4s4sIHHIIHH4sI',
+                            b'RIFF', n + 36, b'WAVE',
+                            b'fmt ', 16, 1, 1, 16000,
+                            32000, 2, 16,
+                            b'data', n,
+                        ) + pcm
+
                     while True:
                         item = await audio_queue.get()
                         if item is None:
                             break
                         try:
-                            await sv_ws.send(item)
+                            wav = pcm_to_wav(item if isinstance(item, bytes) else bytes(item))
+                            msg = json.dumps({
+                                "audio": {
+                                    "data": base64.b64encode(wav).decode(),
+                                    "sample_rate": 16000,
+                                    "encoding": "audio/wav",
+                                }
+                            })
+                            await sv_ws.send(msg)
                         except Exception as e:
                             logger.error(f"Session {session_id}: send to Sarvam failed: {e}")
                             break
 
                 async def receive_transcripts_sarvam() -> None:
-                    """Receive Sarvam transcript events → normalize → forward to browser."""
+                    """Receive Sarvam transcript events → normalize → forward to browser.
+                    Sarvam response shape: {"type": "data", "data": {"transcript": "...", "language_code": "hi-IN", ...}}
+                    """
                     nonlocal chunk_index
                     async for raw_msg in sv_ws:
                         try:
-                            # Sarvam sends binary keepalives — skip non-string frames
                             if isinstance(raw_msg, bytes):
                                 continue
                             msg = json.loads(raw_msg)
                         except Exception:
                             continue
 
-                        # Sarvam response shape: {"transcript": "...", "is_final": true, "language_code": "hi-IN"}
-                        transcript = (msg.get("transcript") or "").strip()
-                        is_final = msg.get("is_final", False)
+                        msg_type = msg.get("type", "")
+                        if msg_type == "error":
+                            logger.error(f"Session {session_id}: Sarvam error: {msg.get('data')}")
+                            continue
+                        if msg_type != "data":
+                            continue
 
-                        if not transcript or not is_final:
+                        transcript = (msg.get("data", {}).get("transcript") or "").strip()
+                        if not transcript:
                             continue
 
                         # Sarvam streaming does not include speaker diarization —
