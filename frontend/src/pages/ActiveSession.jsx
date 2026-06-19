@@ -165,7 +165,7 @@ export default function ActiveSession() {
   const { micStatus, startCapture, stopCapture, errorMessage: micError } = useAudioCapture({
     onChunk: sendAudioChunk,
     isConnected: wsStatus === 'connected',
-    mode: provider === 'sarvam' ? 'pcm' : 'webm',
+    mode: (provider === 'sarvam' || provider === 'sarvam_en') ? 'pcm' : 'webm',
   })
 
   // Auto-start mic once WebSocket confirms connection.
@@ -273,7 +273,7 @@ export default function ActiveSession() {
                 border: `1px solid ${provider === 'sarvam' ? '#ffb74d' : 'var(--color-primary)'}`,
                 fontWeight: 600, letterSpacing: '0.03em',
               }}>
-                {provider === 'sarvam' ? 'Sarvam Saaras v3' : 'Deepgram Nova-3'}
+                {provider === 'sarvam' ? 'Chartr Hindi' : provider === 'sarvam_en' ? 'Chartr Indian English' : 'Chartr Standard'}
               </span>
               {wsStatus === 'connecting' && (
                 <span className={styles.connectingBadge}>Connecting…</span>
@@ -294,32 +294,37 @@ export default function ActiveSession() {
             )}
           </div>
 
-          {/* Debug status bar — shows live wsStatus + micStatus */}
-          <div style={{
-            fontSize: 'var(--text-xs)', padding: 'var(--space-1) var(--space-4)',
-            background: '#f8f8f8', borderBottom: '1px solid var(--color-border)',
-            display: 'flex', gap: 'var(--space-4)', alignItems: 'center', flexWrap: 'wrap',
-          }}>
-            <span>WS: <strong style={{ color: wsStatus === 'connected' ? 'green' : 'orange' }}>{wsStatus}</strong></span>
-            <span>Mic: <strong style={{ color: micStatus === 'recording' ? 'green' : micStatus === 'denied' ? 'red' : 'orange' }}>{micStatus}</strong></span>
-            {wsStatus === 'connected' && micStatus !== 'recording' && micStatus !== 'requesting' && micStatus !== 'denied' && (
+          {/* Mic denied banner */}
+          {micStatus === 'denied' && (
+            <div style={{
+              fontSize: 'var(--text-xs)', color: 'var(--color-error)',
+              padding: 'var(--space-2) var(--space-4)',
+              background: 'var(--color-error-light)',
+              borderBottom: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            }}>
+              🔒 Microphone blocked — click the lock icon in your address bar and allow microphone access, then refresh.
+            </div>
+          )}
+          {wsStatus === 'connected' && micStatus !== 'recording' && micStatus !== 'requesting' && micStatus !== 'denied' && (
+            <div style={{
+              fontSize: 'var(--text-xs)', padding: 'var(--space-2) var(--space-4)',
+              background: 'var(--color-surface-2)', borderBottom: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            }}>
+              <span style={{ color: 'var(--color-text-muted)' }}>Microphone not active.</span>
               <button
-                onClick={() => { console.log('[ActiveSession] manual startCapture'); startCapture() }}
+                onClick={() => startCapture()}
                 style={{
-                  fontSize: 'var(--text-xs)', padding: '2px 10px',
+                  fontSize: 'var(--text-xs)', padding: '3px 12px',
                   background: 'var(--color-primary)', color: '#fff',
-                  border: 'none', borderRadius: '4px', cursor: 'pointer',
+                  border: 'none', borderRadius: 'var(--radius-full)', cursor: 'pointer', fontWeight: 600,
                 }}
               >
                 Start Recording
               </button>
-            )}
-            {micStatus === 'denied' && (
-              <span style={{ color: 'red' }}>
-                Mic blocked — click 🔒 in address bar → allow microphone → refresh
-              </span>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Connection error banner */}
           {connectionError && (

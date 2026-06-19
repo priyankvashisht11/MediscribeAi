@@ -1,0 +1,11 @@
+<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark navy rounded square background -->
+  <rect width="32" height="32" rx="7" fill="#1a2e5c"/>
+  <!-- Bold C arc in white -->
+  <path d="M 24 9 A 11 11 0 1 0 24 23"
+        fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- ECG heartbeat line in accent blue -->
+  <polyline points="24,16 26,16 27,13.5 28.5,19 30,10 31,16"
+            fill="none" stroke="#60a5fa" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

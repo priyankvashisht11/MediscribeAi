@@ -3,14 +3,16 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Radio, ClipboardList, Users, UserSquare,
   Settings, HelpCircle, Menu, X, Sun, Moon, Bell,
-  PlusCircle, Clock, BarChart2, Building2, LogOut
+  PlusCircle, Clock, BarChart2, Building2, LogOut, CreditCard
 } from 'lucide-react'
 import { useUiStore } from '../stores/uiStore'
 import { useDoctorStore } from '../stores/doctorStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { authApi } from '../services/api'
 import Logo from './Logo'
+import ChartrWordmark from './ChartrWordmark'
 import ToastContainer from './Toast'
+import TrialBanner from './TrialBanner'
 import styles from './AppShell.module.css'
 
 const NAV_ITEMS = [
@@ -23,6 +25,7 @@ const NAV_ITEMS = [
 ]
 
 const NAV_BOTTOM = [
+  { icon: CreditCard, label: 'Billing',  to: '/pricing' },
   { icon: Settings,   label: 'Settings', to: '/settings' },
   { icon: HelpCircle, label: 'Help',     to: '/help' },
 ]
@@ -72,27 +75,89 @@ export default function AppShell() {
         <div className={styles.sidebarHeader}>
           <button className={styles.logoBtn} onClick={() => navigate('/')} aria-label="Go to dashboard">
             <Logo size={28} />
-            <span className={styles.logoText}>Chartr</span>
+            <ChartrWordmark className={styles.logoText} />
           </button>
         </div>
 
         <nav className={styles.nav} aria-label="Main navigation">
           <ul className={styles.navList}>
-            {NAV_ITEMS.map(({ icon: Icon, label, to }) => (
-              <li key={to}>
-                <NavLink
-                  to={to}
-                  end={to === '/'}
-                  className={({ isActive }) =>
-                    `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
-                  }
-                  onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
-                >
-                  <Icon size={16} />
-                  <span>{label}</span>
-                </NavLink>
-              </li>
-            ))}
+            <li>
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <LayoutDashboard size={16} />
+                <span>Dashboard</span>
+              </NavLink>
+            </li>
+
+            <li><span className={styles.navGroupLabel}>Workflow</span></li>
+            <li>
+              <NavLink
+                to="/sessions/active"
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <Radio size={16} />
+                <span>Active Sessions</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/sessions/history"
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <ClipboardList size={16} />
+                <span>Session History</span>
+              </NavLink>
+            </li>
+
+            <li><span className={styles.navGroupLabel}>Practice</span></li>
+            <li>
+              <NavLink
+                to="/patients"
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <UserSquare size={16} />
+                <span>Patients</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/doctors"
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <Users size={16} />
+                <span>Doctors</span>
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/analytics"
+                className={({ isActive }) =>
+                  `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+                }
+                onClick={() => { if (window.innerWidth < 768) toggleSidebar() }}
+              >
+                <BarChart2 size={16} />
+                <span>Analytics</span>
+              </NavLink>
+            </li>
           </ul>
 
           <div className={styles.navDivider} />
@@ -174,6 +239,7 @@ export default function AppShell() {
 
       {/* Main content */}
       <main className={styles.main}>
+        <TrialBanner />
         <Outlet />
       </main>
 

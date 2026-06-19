@@ -28,3 +28,5 @@ langchain-openai==0.3.16
 langchain-core==0.3.58
 openai==1.82.0
 tiktoken==0.9.0
+
+# Billing / Payments — using httpx directly (razorpay SDK has pkg_resources issues on slim images)

@@ -307,8 +307,8 @@
     display: block;
     font-size: 14pt;
     font-weight: 700;
-    color: #01696f;
-    border-bottom: 2px solid #01696f;
+    color: #0a0a0a;
+    border-bottom: 2px solid #0a0a0a;
     padding-bottom: 6pt;
     margin-bottom: 12pt;
   }
@@ -334,7 +334,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5pt;
-    color: #01696f;
+    color: #0a0a0a;
   }
 
   .sectionContent {

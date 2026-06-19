@@ -1,11 +1,11 @@
 /* ── Chartr Design Tokens ─────────────────────────────────────────────── */
 
 :root {
-  /* Primary — Teal (medical, trustworthy) */
-  --color-primary:        #01696f;
-  --color-primary-hover:  #015a5f;
-  --color-primary-light:  #e6f4f4;
-  --color-primary-muted:  #b2d8da;
+  /* Primary — Black (clean, editorial, ElevenLabs-inspired) */
+  --color-primary:        #0a0a0a;
+  --color-primary-hover:  #262626;
+  --color-primary-light:  #f5f5f5;
+  --color-primary-muted:  #d4d4d4;
 
   /* Semantic */
   --color-success:        #16a34a;
@@ -18,21 +18,21 @@
   --color-info-light:     #e0f2fe;
 
   /* Light mode surfaces */
-  --color-bg:             #f8fafb;
+  --color-bg:             #fafafa;
   --color-surface:        #ffffff;
-  --color-surface-2:      #f1f5f6;
-  --color-border:         #e2e8ea;
-  --color-border-strong:  #c8d4d6;
+  --color-surface-2:      #f5f5f5;
+  --color-border:         #e5e5e5;
+  --color-border-strong:  #d4d4d4;
 
   /* Light mode text */
-  --color-text:           #0f1f21;
-  --color-text-secondary: #3d5a5e;
-  --color-text-muted:     #6b8a8e;
-  --color-text-disabled:  #a0b4b7;
+  --color-text:           #0a0a0a;
+  --color-text-secondary: #525252;
+  --color-text-muted:     #737373;
+  --color-text-disabled:  #a3a3a3;
   --color-text-inverse:   #ffffff;
 
   /* Typography */
-  --font-body: 'Satoshi', 'Inter', system-ui, sans-serif;
+  --font-body: 'Geist Variable', 'Geist', system-ui, sans-serif;
 
   /* Fluid type scale */
   --text-xs:   clamp(0.694rem, 0.67rem + 0.12vw,  0.75rem);
@@ -75,10 +75,10 @@
   --transition-slow: 250ms ease;
 
   /* Extended surfaces */
-  --color-primary-highlight: #e6f4f4;
-  --color-surface-dynamic:   #edf2f3;
-  --color-surface-offset:    #ecf0f1;
-  --color-text-faint:        #a0b4b7;
+  --color-primary-highlight: #f5f5f5;
+  --color-surface-dynamic:   #f0f0f0;
+  --color-surface-offset:    #ebebeb;
+  --color-text-faint:        #a3a3a3;
 
   /* Layout */
   --sidebar-width:    220px;
@@ -92,26 +92,26 @@
 
 /* ── Dark mode ────────────────────────────────────────────────────────────── */
 [data-theme="dark"] {
-  --color-bg:             #0d1a1c;
-  --color-surface:        #152124;
-  --color-surface-2:      #1c2c30;
-  --color-border:         #243438;
-  --color-border-strong:  #2e4248;
+  --color-bg:             #0a0a0a;
+  --color-surface:        #141414;
+  --color-surface-2:      #1f1f1f;
+  --color-border:         #292929;
+  --color-border-strong:  #383838;
 
-  --color-text:           #e8f4f5;
-  --color-text-secondary: #9bbfc3;
-  --color-text-muted:     #6a9298;
-  --color-text-disabled:  #3d5a5e;
-  --color-text-inverse:   #0f1f21;
+  --color-text:           #fafafa;
+  --color-text-secondary: #a3a3a3;
+  --color-text-muted:     #737373;
+  --color-text-disabled:  #404040;
+  --color-text-inverse:   #0a0a0a;
 
-  --color-primary:           #2a9da3;
-  --color-primary-hover:     #3ab0b7;
-  --color-primary-light:     #0d2e30;
-  --color-primary-muted:     #1a4a4e;
-  --color-primary-highlight: #0d2e30;
-  --color-surface-dynamic:   #1c2c30;
-  --color-surface-offset:    #1a2a2e;
-  --color-text-faint:        #3d5a5e;
+  --color-primary:           #ffffff;
+  --color-primary-hover:     #e5e5e5;
+  --color-primary-light:     #1f1f1f;
+  --color-primary-muted:     #292929;
+  --color-primary-highlight: #1f1f1f;
+  --color-surface-dynamic:   #1f1f1f;
+  --color-surface-offset:    #262626;
+  --color-text-faint:        #404040;
 
   --color-success:        #22c55e;
   --color-success-light:  #052e16;
@@ -122,8 +122,8 @@
   --color-info:           #38bdf8;
   --color-info-light:     #082030;
 
-  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.2);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.2);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
 }

@@ -81,26 +81,29 @@ async def analytics_overview(
         select(func.count()).select_from(note_subq)
     )
 
-    # Total distinct patients seen
+    # Total distinct patients seen (by patient_id FK)
     total_patients = await db.scalar(
-        select(func.count(func.distinct(SessionModel.patient_name))).select_from(
+        select(func.count(func.distinct(SessionModel.patient_id))).select_from(
             completed.subquery()
         )
-    ) if hasattr(SessionModel, "patient_name") else 0
-
-    # Busiest hour (0-23)
-    busiest_row = await db.execute(
-        select(
-            func.extract("hour", SessionModel.created_at).label("hr"),
-            func.count().label("cnt"),
-        )
-        .select_from(completed.subquery())
-        .group_by("hr")
-        .order_by(func.count().desc())
-        .limit(1)
     )
-    busiest = busiest_row.first()
-    busiest_hour = int(busiest.hr) if busiest else None
+
+    # Busiest hour in IST (UTC+5:30) using raw SQL for interval safety
+    # Use NULLIF('', '') pattern to avoid asyncpg AmbiguousParameterError with NULL params
+    bh_sql = text("""
+        SELECT EXTRACT(HOUR FROM created_at + INTERVAL '330 minutes') AS hr, COUNT(*) AS cnt
+        FROM sessions
+        WHERE status = 'completed'
+          AND (NULLIF(:doctor_id, '') IS NULL OR doctor_id::text = :doctor_id)
+          AND (NULLIF(:clinic_id, '') IS NULL OR clinic_id::text = :clinic_id)
+        GROUP BY 1 ORDER BY cnt DESC LIMIT 1
+    """)
+    bh_result = await db.execute(bh_sql, {
+        "doctor_id": str(doctor_id) if doctor_id else '',
+        "clinic_id": str(clinic_id) if clinic_id else '',
+    })
+    bh_row = bh_result.first()
+    busiest_hour = int(float(bh_row.hr)) if bh_row else None
 
     # Finalized notes percentage
     total_notes_where = []
@@ -127,10 +130,19 @@ async def analytics_overview(
     )
     finalized_pct = round((finalized_total / total_notes) * 100, 1) if total_notes else 0.0
 
+    # Sessions this month
+    month_start = date.today().replace(day=1)
+    sessions_this_month = await db.scalar(
+        select(func.count()).select_from(
+            completed.where(func.date(SessionModel.created_at) >= month_start).subquery()
+        )
+    )
+
     return {
         "total_sessions": total or 0,
         "sessions_today": sessions_today or 0,
         "sessions_this_week": sessions_this_week or 0,
+        "sessions_this_month": sessions_this_month or 0,
         "avg_session_duration_minutes": avg_duration,
         "notes_finalized_this_week": notes_finalized_this_week or 0,
         "total_patients_seen": total_patients or 0,
@@ -156,8 +168,8 @@ async def icd_breakdown(
         FROM clinical_notes cn
         JOIN sessions s ON s.id = cn.session_id,
              jsonb_array_elements(cn.icd_codes) AS elem
-        WHERE (:doctor_id IS NULL OR s.doctor_id = CAST(:doctor_id AS uuid))
-          AND (:clinic_id IS NULL OR s.clinic_id = CAST(:clinic_id AS uuid))
+        WHERE (NULLIF(:doctor_id, '') IS NULL OR s.doctor_id::text = :doctor_id)
+          AND (NULLIF(:clinic_id, '') IS NULL OR s.clinic_id::text = :clinic_id)
           AND cn.icd_codes IS NOT NULL
           AND jsonb_array_length(cn.icd_codes) > 0
         GROUP BY code, description
@@ -165,12 +177,60 @@ async def icd_breakdown(
         LIMIT :limit
     """)
     result = await db.execute(sql, {
-        "doctor_id": str(doctor_id) if doctor_id else None,
-        "clinic_id": str(clinic_id) if clinic_id else None,
+        "doctor_id": str(doctor_id) if doctor_id else '',
+        "clinic_id": str(clinic_id) if clinic_id else '',
         "limit": limit,
     })
     rows = result.fetchall()
     return [{"code": r.code, "description": r.description, "count": r.count} for r in rows]
+
+
+@router.get("/doctor-breakdown")
+async def doctor_breakdown(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Per-doctor stats for the current clinic — used in the Analytics doctor table."""
+    from app.models import Doctor
+    clinic_id = _get_clinic_id(request)
+    if not clinic_id:
+        return []
+
+    sql = text("""
+        SELECT
+            d.id,
+            d.name,
+            d.specialty,
+            COUNT(DISTINCT s.id)                                            AS total_sessions,
+            COUNT(DISTINCT s.patient_id)                                    AS unique_patients,
+            ROUND(AVG(EXTRACT(EPOCH FROM (s.ended_at - s.started_at))/60)::numeric, 1)
+                                                                            AS avg_duration_min,
+            COUNT(DISTINCT cn.id) FILTER (WHERE cn.is_finalized = TRUE)    AS notes_finalized,
+            MAX(s.created_at)                                               AS last_session_at
+        FROM doctors d
+        LEFT JOIN sessions s   ON s.doctor_id  = d.id
+                               AND s.clinic_id = :clinic_id
+                               AND s.status    = 'completed'
+        LEFT JOIN clinical_notes cn ON cn.session_id = s.id
+        WHERE d.clinic_id = :clinic_id
+          AND d.is_active  = TRUE
+        GROUP BY d.id, d.name, d.specialty
+        ORDER BY total_sessions DESC
+    """)
+    rows = (await db.execute(sql, {"clinic_id": str(clinic_id)})).fetchall()
+    return [
+        {
+            "id":               str(r.id),
+            "name":             r.name,
+            "specialty":        r.specialty,
+            "total_sessions":   r.total_sessions or 0,
+            "unique_patients":  r.unique_patients or 0,
+            "avg_duration_min": float(r.avg_duration_min) if r.avg_duration_min else 0.0,
+            "notes_finalized":  r.notes_finalized or 0,
+            "last_session_at":  r.last_session_at.isoformat() if r.last_session_at else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/sessions-by-day")
@@ -189,15 +249,54 @@ async def sessions_by_day(
         FROM sessions
         WHERE status = 'completed'
           AND created_at >= :start
-          AND (:doctor_id IS NULL OR doctor_id = CAST(:doctor_id AS uuid))
-          AND (:clinic_id IS NULL OR clinic_id = CAST(:clinic_id AS uuid))
+          AND (NULLIF(:doctor_id, '') IS NULL OR doctor_id::text = :doctor_id)
+          AND (NULLIF(:clinic_id, '') IS NULL OR clinic_id::text = :clinic_id)
         GROUP BY day
     """)
     result = await db.execute(sql, {
         "start": date_range[0],
-        "doctor_id": str(doctor_id) if doctor_id else None,
-        "clinic_id": str(clinic_id) if clinic_id else None,
+        "doctor_id": str(doctor_id) if doctor_id else '',
+        "clinic_id": str(clinic_id) if clinic_id else '',
     })
     counts = {str(r.day): r.cnt for r in result.fetchall()}
 
     return [{"date": str(d), "count": counts.get(str(d), 0)} for d in date_range]
+
+
+@router.get("/sessions-by-weekday")
+async def sessions_by_weekday(
+    request: Request,
+    doctor_id: UUID | None = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Sessions count grouped by day of week (IST), returned Mon–Sun."""
+    clinic_id = _get_clinic_id(request)
+    # PostgreSQL DOW: 0=Sunday … 6=Saturday; we remap to Mon=0…Sun=6 for display
+    sql = text("""
+        SELECT
+            EXTRACT(DOW FROM created_at + INTERVAL '330 minutes') AS dow,
+            COUNT(*) AS cnt
+        FROM sessions
+        WHERE status = 'completed'
+          AND (NULLIF(:doctor_id, '') IS NULL OR doctor_id::text = :doctor_id)
+          AND (NULLIF(:clinic_id, '') IS NULL OR clinic_id::text = :clinic_id)
+        GROUP BY 1
+    """)
+    result = await db.execute(sql, {
+        "doctor_id": str(doctor_id) if doctor_id else '',
+        "clinic_id": str(clinic_id) if clinic_id else '',
+    })
+    # EXTRACT returns float; convert to int for dict key
+    counts = {int(float(row.dow)): int(row.cnt) for row in result.fetchall()}
+
+    # PG DOW: 0=Sun,1=Mon,...,6=Sat → reorder Mon-Sun (1,2,3,4,5,6,0)
+    days = [
+        {"day": "Mon", "count": counts.get(1, 0)},
+        {"day": "Tue", "count": counts.get(2, 0)},
+        {"day": "Wed", "count": counts.get(3, 0)},
+        {"day": "Thu", "count": counts.get(4, 0)},
+        {"day": "Fri", "count": counts.get(5, 0)},
+        {"day": "Sat", "count": counts.get(6, 0)},
+        {"day": "Sun", "count": counts.get(0, 0)},
+    ]
+    return days

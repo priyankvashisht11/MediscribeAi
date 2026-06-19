@@ -21,7 +21,7 @@ _bearer = HTTPBearer(auto_error=False)
 router = APIRouter()
 
 _ALGORITHM = "HS256"
-_TOKEN_TTL_HOURS = 24
+_TOKEN_TTL_MINUTES = 30   # short-lived; frontend silently refreshes via httpOnly cookie
 _REFRESH_TTL_DAYS = 7
 _PWD_RE = re.compile(r'^(?=.*[a-zA-Z])(?=.*\d).{8,}$')
 
@@ -36,7 +36,7 @@ def _make_doctor_token(doctor: Doctor) -> str:
             "SECRET_KEY is not configured. "
             "Run: flyctl secrets set SECRET_KEY=$(openssl rand -hex 32) --app chartr-api"
         )
-    exp = datetime.now(timezone.utc) + timedelta(hours=_TOKEN_TTL_HOURS)
+    exp = datetime.now(timezone.utc) + timedelta(minutes=_TOKEN_TTL_MINUTES)
     payload = {
         "sub":       str(doctor.id),
         "doctor_id": str(doctor.id),
@@ -96,7 +96,7 @@ def _make_pin_token() -> str:
     """Legacy PIN-mode token — doctor_id and clinic_id are null (no scoping)."""
     if not settings.secret_key:
         raise RuntimeError("SECRET_KEY is not configured.")
-    exp = datetime.now(timezone.utc) + timedelta(hours=_TOKEN_TTL_HOURS)
+    exp = datetime.now(timezone.utc) + timedelta(minutes=_TOKEN_TTL_MINUTES)
     payload = {
         "sub":       "pin_user",
         "doctor_id": None,
@@ -171,7 +171,7 @@ async def verify_pin(body: PinRequest):
     """Legacy PIN gate — kept for backwards compat with existing demo deployment."""
     if settings.access_pin and body.pin != settings.access_pin:
         raise HTTPException(status_code=401, detail="Incorrect PIN")
-    return {"token": _make_pin_token(), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_pin_token(), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.post("/login")
@@ -194,7 +194,7 @@ async def login(body: LoginRequest, response: Response, db: AsyncSession = Depen
         raise HTTPException(status_code=401, detail=_BAD_CREDS)
 
     _set_refresh_cookie(response, _make_refresh_token(doctor))
-    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.get("/me")
@@ -285,7 +285,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     await db.refresh(doctor)
 
     _set_refresh_cookie(response, _make_refresh_token(doctor))
-    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.post("/setup-password")
@@ -308,7 +308,7 @@ async def setup_password(body: SetupPasswordRequest, response: Response, db: Asy
     doctor.hashed_password = pwd_context.hash(body.new_password)
     await db.commit()
     _set_refresh_cookie(response, _make_refresh_token(doctor))
-    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.post("/forgot-password")
@@ -353,7 +353,7 @@ async def forgot_password(body: ForgotPasswordRequest, request: Request, db: Asy
 
 
 @router.post("/reset-password")
-async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def reset_password(body: ResetPasswordRequest, response: Response, db: AsyncSession = Depends(get_db)):
     """Complete password reset using the token from the reset email."""
     _validate_password(body.new_password)
 
@@ -372,7 +372,7 @@ async def reset_password(body: ResetPasswordRequest, db: AsyncSession = Depends(
     doctor.hashed_password = pwd_context.hash(body.new_password)
     await db.commit()
     _set_refresh_cookie(response, _make_refresh_token(doctor))
-    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.post("/refresh")
@@ -401,7 +401,7 @@ async def refresh_token(request: Request, response: Response, db: AsyncSession =
         raise HTTPException(status_code=401, detail="Account not found or disabled")
 
     _set_refresh_cookie(response, _make_refresh_token(doctor))
-    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_HOURS * 3600}
+    return {"token": _make_doctor_token(doctor), "expires_in": _TOKEN_TTL_MINUTES * 60}
 
 
 @router.post("/logout")

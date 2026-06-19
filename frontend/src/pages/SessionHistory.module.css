@@ -124,7 +124,7 @@
   text-transform: capitalize;
 }
 .chip_recording { background: #fee2e2; color: #dc2626; }
-.chip_completed  { background: var(--color-success-light); color: var(--color-success); }
+.chip_completed  { background: var(--color-surface-2); color: var(--color-text-secondary); }
 .chip_idle       { background: var(--color-surface-2); color: var(--color-text-muted); }
 
 /* ── Row action buttons ────────────────────────────────────────────────────── */

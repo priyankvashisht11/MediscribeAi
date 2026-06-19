@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     # ── LLM / Note Generation ──────────────────────────────────────────────────
     # Perplexity (primary) — uses OpenAI-compatible API
     perplexity_api_key: str = ""
-    perplexity_model: str = "r1-1776"
-    # r1-1776: DeepSeek R1 hosted by Perplexity — strong reasoning, no web search (offline).
-    # No per-request search fees. ~10x cheaper than sonar-reasoning-pro for structured extraction.
+    perplexity_model: str = "sonar-pro"
+    # sonar-pro: Perplexity's best reasoning model. Strong structured JSON extraction.
+    # r1-1776 was retired by Perplexity in mid-2026.
     perplexity_base_url: str = "https://api.perplexity.ai"
 
     # OpenAI (fallback)
@@ -72,6 +72,13 @@ class Settings(BaseSettings):
 
     from_email: str = "noreply@chartr.in"
     # Must be a verified sender domain in Resend
+
+    # ── Razorpay Billing ───────────────────────────────────────────────────────
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
+    razorpay_webhook_secret: str = ""
+    razorpay_plan_solo: str = ""
+    razorpay_plan_clinic: str = ""
 
     # ── Vision AI (medical image + PDF analysis) ───────────────────────────────
     gemini_api_key: str = ""

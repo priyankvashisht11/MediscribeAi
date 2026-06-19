@@ -4,7 +4,8 @@ import { sessionsApi } from '../services/api'
 import { useSessionStore } from '../stores/sessionStore'
 import { useUiStore } from '../stores/uiStore'
 import { useDoctorStore } from '../stores/doctorStore'
-import { Lock, Mic } from 'lucide-react'
+import { useBilling } from '../hooks/useBilling'
+import { Lock, Mic, Zap } from 'lucide-react'
 import PatientSearchInput from '../components/PatientSearchInput'
 import styles from './NewSession.module.css'
 
@@ -15,6 +16,7 @@ export default function NewSession() {
   const setCurrentSession = useSessionStore((s) => s.setCurrentSession)
   const addToast = useUiStore((s) => s.addToast)
   const doctor = useDoctorStore((s) => s.doctor)
+  const { billing, loading: billingLoading } = useBilling()
 
   const [step, setStep] = useState(0)
   const [patientName, setPatientName] = useState('')
@@ -43,11 +45,62 @@ export default function NewSession() {
       })
       setCurrentSession(session)
       navigate(`/sessions/${session.id}/live?provider=${provider}`)
-    } catch {
-      addToast({ type: 'error', message: 'Failed to create session. Please try again.' })
+    } catch (err) {
+      const status = err?.response?.status
+      const detail = err?.response?.data?.detail
+      if (status === 402) {
+        // Session limit hit — redirect to pricing
+        navigate('/pricing')
+        return
+      }
+      addToast({ type: 'error', message: detail?.message || 'Failed to create session. Please try again.' })
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show gate wall if free tier limit is reached
+  const isLimitReached = !billingLoading && billing && billing.can_start_session === false
+
+  if (isLimitReached) {
+    return (
+      <div className={styles.page}>
+        <div style={{
+          maxWidth: 480, margin: '60px auto', textAlign: 'center',
+          padding: 'var(--space-8)',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ margin: '0 0 8px', fontSize: 'var(--text-xl)', color: 'var(--color-text)' }}>
+            Monthly session limit reached
+          </h2>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 8px' }}>
+            You've used all <strong>{billing.session_limit} free sessions</strong> this month.
+          </p>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '0 0 24px' }}>
+            Upgrade to Solo or Clinic to record unlimited sessions.
+          </p>
+          <button
+            className={styles.btnPrimary}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}
+            onClick={() => navigate('/pricing')}
+          >
+            <Zap size={15} />
+            Upgrade Now — ₹999/month
+          </button>
+          <div style={{ marginTop: 12 }}>
+            <button
+              className={styles.btnSecondary}
+              onClick={() => navigate('/')}
+            >
+              Back to Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -173,7 +226,7 @@ export default function NewSession() {
                   <input type="radio" name="provider" value="deepgram" checked={provider === 'deepgram'}
                     onChange={() => setProvider('deepgram')} style={{ marginTop: 3 }} />
                   <span>
-                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Deepgram Nova-3</strong>
+                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Chartr Standard</strong>
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>English · Speaker labels · Best accuracy</span>
                   </span>
                 </label>
@@ -190,8 +243,25 @@ export default function NewSession() {
                   <input type="radio" name="provider" value="sarvam" checked={provider === 'sarvam'}
                     onChange={() => setProvider('sarvam')} style={{ marginTop: 3 }} />
                   <span>
-                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Sarvam Saaras v3</strong>
+                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Chartr Hindi</strong>
                     <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Hindi · Hinglish · Code-switching</span>
+                  </span>
+                </label>
+                <label
+                  className={styles.providerBtn}
+                  style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
+                    padding: '10px 14px', borderRadius: 'var(--radius-md)',
+                    border: `2px solid ${provider === 'sarvam_en' ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                    background: provider === 'sarvam_en' ? 'var(--color-primary-light)' : 'var(--color-surface)',
+                    transition: 'all 0.15s ease', minWidth: 160, flex: 1,
+                  }}
+                >
+                  <input type="radio" name="provider" value="sarvam_en" checked={provider === 'sarvam_en'}
+                    onChange={() => setProvider('sarvam_en')} style={{ marginTop: 3 }} />
+                  <span>
+                    <strong style={{ fontSize: 'var(--text-sm)', display: 'block' }}>Chartr Indian English</strong>
+                    <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>Indian English · Fast · Low latency</span>
                   </span>
                 </label>
               </div>
@@ -258,7 +328,7 @@ export default function NewSession() {
               <div className={styles.summaryRow}>
                 <span className={styles.summaryKey}>Engine</span>
                 <span className={styles.summaryVal}>
-                  {provider === 'sarvam' ? 'Sarvam Saaras v3 (Hindi/Hinglish)' : 'Deepgram Nova-3 (English)'}
+                  {provider === 'sarvam' ? 'Chartr Hindi (Hindi / Hinglish)' : provider === 'sarvam_en' ? 'Chartr Indian English' : 'Chartr Standard (English)'}
                 </span>
               </div>
               <div className={styles.summaryRow}>

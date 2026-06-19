@@ -5,7 +5,7 @@ import { Search, UserSquare, ChevronRight, Plus } from 'lucide-react'
 import styles from './PatientDirectory.module.css'
 
 function avatarGradient() {
-  return 'linear-gradient(135deg, #01696f 0%, #1a8f95 100%)'
+  return 'linear-gradient(135deg, #1a1a1a 0%, #404040 100%)'
 }
 
 function genderIcon(gender) {

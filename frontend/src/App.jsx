@@ -27,6 +27,7 @@ const Help              = lazy(() => import('./pages/Help'))
 const PatientDirectory  = lazy(() => import('./pages/PatientDirectory'))
 const PatientProfile    = lazy(() => import('./pages/PatientProfile'))
 const ClinicAdmin       = lazy(() => import('./pages/ClinicAdmin'))
+const PricingPage       = lazy(() => import('./pages/PricingPage'))
 
 function PageLoader() {
   return (
@@ -149,6 +150,7 @@ export default function App() {
             <Route path="patients" element={<Suspense fallback={<PageLoader />}><PatientDirectory /></Suspense>} />
             <Route path="patients/:patientId" element={<Suspense fallback={<PageLoader />}><PatientProfile /></Suspense>} />
             <Route path="clinic" element={<Suspense fallback={<PageLoader />}><ClinicAdmin /></Suspense>} />
+            <Route path="pricing" element={<Suspense fallback={<PageLoader />}><PricingPage /></Suspense>} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

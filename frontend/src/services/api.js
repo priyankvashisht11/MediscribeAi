@@ -95,7 +95,7 @@ export const patientsApi = {
   get: (id) => api.get(`/api/patients/${id}`).then((r) => r.data),
   update: (id, body) => api.patch(`/api/patients/${id}`, body).then((r) => r.data),
   sessions: (id) => api.get(`/api/patients/${id}/sessions`).then((r) => r.data),
-  analysis: (id) => api.get(`/api/patients/${id}/analysis`).then((r) => r.data),
+  analysis: (id, force = false) => api.get(`/api/patients/${id}/analysis`, { params: force ? { force: 'true' } : {} }).then((r) => r.data),
   flipAll: (sessionId) => api.patch(`/api/sessions/${sessionId}/flip-all-speakers`).then((r) => r.data),
 }
 
@@ -113,6 +113,12 @@ export const authApi = {
     api.post('/api/auth/reset-password', { reset_token: resetToken, new_password: newPassword }).then((r) => r.data),
   logout: () =>
     api.post('/api/auth/logout').catch(() => {}),  // best-effort cookie clear
+}
+
+export const billingApi = {
+  status: () => api.get('/api/billing/status').then((r) => r.data),
+  subscribe: (plan) => api.post('/api/billing/subscribe', { plan }).then((r) => r.data),
+  cancel: () => api.post('/api/billing/cancel').then((r) => r.data),
 }
 
 export default api

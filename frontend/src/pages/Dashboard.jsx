@@ -1,12 +1,15 @@
 import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useDashboardStats } from '../hooks/useDashboardStats'
 import { useActiveSessions } from '../hooks/useActiveSessions'
 import { useDoctors } from '../context/DoctorsContext'
 import { useDoctorStore } from '../stores/doctorStore'
 import { useUiStore } from '../stores/uiStore'
-import { formatDuration } from '../utils/format'
-import { Plus, Activity, Calendar, Mic, FileCheck, ArrowRight } from 'lucide-react'
+import { useBilling } from '../hooks/useBilling'
+import { formatDuration, formatDate } from '../utils/format'
+import { apiFetch } from '../utils/apiFetch'
+import { Plus, Activity, Calendar, Mic, FileCheck, ArrowRight, Eye } from 'lucide-react'
 import styles from './Dashboard.module.css'
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -50,32 +53,23 @@ function useCountUp(target, enabled = true, duration = 900) {
   return value
 }
 
-/* ── Mini bar chart ───────────────────────────────────────────────────────── */
-function BreakdownBar({ completed, idle, recording, total }) {
-  if (!total) return null
-  const pct = v => `${Math.max(2, Math.round((v / total) * 100))}%`
-  return (
-    <div className={styles.barTrack}>
-      {completed > 0 && <div className={styles.barSegCompleted} style={{ width: pct(completed) }} />}
-      {recording > 0 && <div className={styles.barSegRecording} style={{ width: pct(recording) }} />}
-      {idle > 0 && <div className={styles.barSegIdle} style={{ flex: 1 }} />}
-    </div>
-  )
-}
-
 /* ── KPI Card ─────────────────────────────────────────────────────────────── */
-function KpiCard({ label, value, icon: Icon, variant, animate, badge }) {
+function KpiCard({ label, value, icon: Icon, variant, animate, badge, sub }) {
   const animated = useCountUp(value, animate)
   return (
     <div className={`${styles.kpiCard} ${styles[`kpiCard_${variant}`] || ''}`}>
       <div className={styles.kpiTop}>
-        <div className={`${styles.kpiIconWrap} ${variant === 'live' ? styles.kpiIconPulse : ''}`}>
-          {Icon && <Icon size={16} />}
-        </div>
         <span className={styles.kpiLabel}>{label}</span>
+        {Icon && (
+          <div className={`${styles.kpiIconWrap} ${variant === 'live' ? styles.kpiIconPulse : ''}`}>
+            <Icon size={14} />
+          </div>
+        )}
       </div>
       <span className={styles.kpiValue}>{animated}</span>
-      {badge && <span className={styles.kpiBadge}>{badge}</span>}
+      <span className={styles.kpiSub}>
+        {badge ? <span className={styles.kpiBadge}>{badge}</span> : sub}
+      </span>
     </div>
   )
 }
@@ -145,9 +139,52 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const addToast = useUiStore((s) => s.addToast)
   const doctor = useDoctorStore((s) => s.doctor)
+  const [demoLoading, setDemoLoading] = useState(false)
+  const queryClient = useQueryClient()
   const { stats, loading: statsLoading, error: statsError, hasAnimated, refresh } = useDashboardStats()
   const { sessions: activeSessions, loading: activeLoading } = useActiveSessions(10000)
   const { getDoctorName } = useDoctors()
+  const { billing } = useBilling()
+
+  const { data: recentData } = useQuery({
+    queryKey: ['dashboard-recent-sessions'],
+    queryFn: async () => {
+      const res = await apiFetch('/api/sessions?page=1&page_size=6')
+      return res.json()
+    },
+    staleTime: 60_000,
+  })
+  const recentSessions = recentData?.items ?? []
+
+  async function handleLoadDemo() {
+    setDemoLoading(true)
+    try {
+      const res = await apiFetch('/api/demo/seed', { method: 'POST' })
+      const data = await res.json()
+      addToast({ type: 'success', message: 'Demo data loaded — refreshing…' })
+      await queryClient.invalidateQueries()
+      refresh()
+    } catch {
+      addToast({ type: 'error', message: 'Failed to load demo data' })
+    } finally {
+      setDemoLoading(false)
+    }
+  }
+
+  async function handleUnloadDemo() {
+    setDemoLoading(true)
+    try {
+      const res = await apiFetch('/api/demo/seed', { method: 'DELETE' })
+      const data = await res.json()
+      addToast({ type: 'success', message: `Demo data removed — ${data.removed} sessions cleared` })
+      await queryClient.invalidateQueries()
+      refresh()
+    } catch {
+      addToast({ type: 'error', message: 'Failed to unload demo data' })
+    } finally {
+      setDemoLoading(false)
+    }
+  }
 
   if (statsError && !stats) {
     return (
@@ -160,6 +197,8 @@ export default function Dashboard() {
   }
 
   const isFirstRun = !statsLoading && stats?.total_sessions === 0
+  const isDemoAccount = doctor?.email === 'ananya@demo.chartr.in'
+  const sessionGated = billing?.can_start_session === false
 
   if (isFirstRun) {
     return (
@@ -177,15 +216,21 @@ export default function Dashboard() {
             Start your first session to begin.
           </p>
           <div className="first-run-actions">
-            <button className="btn btn-primary btn-lg" onClick={() => navigate('/sessions/new')}>
-              Start First Session
-            </button>
             <button
-              className="btn btn-secondary"
-              onClick={() => addToast({ type: 'info', message: 'Run: docker compose exec backend python scripts/seed_demo.py' })}
+              className="btn btn-primary btn-lg"
+              onClick={() => navigate(sessionGated ? '/pricing' : '/sessions/new')}
             >
-              Load Demo Data
+              {sessionGated ? '🔒 Upgrade to Start Session' : 'Start First Session'}
             </button>
+            {isDemoAccount && (
+              <button
+                className="btn btn-secondary"
+                onClick={handleLoadDemo}
+                disabled={demoLoading}
+              >
+                {demoLoading ? 'Loading…' : 'Load Demo Data'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -198,18 +243,23 @@ export default function Dashboard() {
   const liveCount = activeSessions.filter(s => s.status === 'recording').length
   const isLive = liveCount > 0
 
+  const totalSessions = stats?.total_sessions ?? 0
+  const finalizedNotes = stats?.finalized_notes ?? 0
+
   const KPI_CARDS = [
     {
       label: 'Total Sessions',
-      value: stats?.total_sessions,
+      value: totalSessions,
       icon: Activity,
       variant: 'default',
+      sub: 'all time',
     },
     {
       label: 'Today',
       value: todayCount,
       icon: Calendar,
-      variant: todayCount > 0 ? 'today' : 'default',
+      variant: 'default',
+      sub: 'since midnight',
     },
     {
       label: 'Recording Now',
@@ -217,12 +267,14 @@ export default function Dashboard() {
       icon: Mic,
       variant: isLive ? 'live' : 'default',
       badge: isLive ? '● LIVE' : null,
+      sub: 'none active',
     },
     {
       label: 'Notes Finalized',
-      value: stats?.finalized_notes,
+      value: finalizedNotes,
       icon: FileCheck,
-      variant: (stats?.finalized_notes ?? 0) > 0 ? 'success' : 'default',
+      variant: 'default',
+      sub: totalSessions > 0 ? `of ${totalSessions} sessions` : 'none yet',
     },
   ]
 
@@ -248,9 +300,35 @@ export default function Dashboard() {
             )}
           </p>
         </div>
-        <button className={styles.newSessionBtn} onClick={() => navigate('/sessions/new')}>
-          <Plus size={15} /> New Session
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isDemoAccount && (
+            <>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={handleLoadDemo}
+                disabled={demoLoading}
+                style={{ fontSize: '12px', color: 'var(--color-text-muted)', opacity: 0.7 }}
+              >
+                {demoLoading ? 'Loading…' : 'Load demo data'}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={handleUnloadDemo}
+                disabled={demoLoading}
+                style={{ fontSize: '12px', color: 'var(--color-text-muted)', opacity: 0.7 }}
+              >
+                {demoLoading ? 'Working…' : 'Unload demo data'}
+              </button>
+            </>
+          )}
+          <button
+            className={styles.newSessionBtn}
+            onClick={() => navigate(sessionGated ? '/pricing' : '/sessions/new')}
+            title={sessionGated ? 'Monthly session limit reached — upgrade to continue' : undefined}
+          >
+            <Plus size={15} /> {sessionGated ? '🔒 Upgrade' : 'New Session'}
+          </button>
+        </div>
       </div>
 
       {/* ── KPIs ── */}
@@ -286,11 +364,16 @@ export default function Dashboard() {
           </div>
         ) : activeSessions.length === 0 ? (
           <div className={styles.empty}>
-            <div className={styles.emptyIcon}><Mic size={22} strokeWidth={1.5} /></div>
-            <p className={styles.emptyTitle}>No active sessions right now</p>
-            <p className={styles.emptyHint}>Start a session to begin recording and transcribing.</p>
-            <button className={styles.emptyAction} onClick={() => navigate('/sessions/new')}>
-              <Plus size={13} /> Start Session
+            <div className={styles.emptyIcon}><Mic size={16} strokeWidth={1.5} /></div>
+            <div className={styles.emptyText}>
+              <p className={styles.emptyTitle}>No active sessions</p>
+              <p className={styles.emptyHint}>Start recording to begin transcribing</p>
+            </div>
+            <button
+              className={styles.emptyAction}
+              onClick={() => navigate(sessionGated ? '/pricing' : '/sessions/new')}
+            >
+              <Plus size={13} /> {sessionGated ? '🔒 Upgrade to Start' : 'Start Session'}
             </button>
           </div>
         ) : (
@@ -307,24 +390,67 @@ export default function Dashboard() {
         )}
       </section>
 
+      {/* ── Recent Sessions ── */}
+      {recentSessions.length > 0 && (
+        <section className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Recent Sessions</h2>
+            <button className={styles.sectionLink} onClick={() => navigate('/sessions/history')}>
+              View all <ArrowRight size={12} />
+            </button>
+          </div>
+          <div className={styles.recentTable}>
+            {recentSessions.map(s => (
+              <div key={s.id} className={styles.recentRow}>
+                <div className={styles.recentAvatar}>
+                  {(s.patient_name ?? 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className={styles.recentMain}>
+                  <span className={styles.recentPatient}>{s.patient_name ?? 'Unknown patient'}</span>
+                  <span className={styles.recentDoctor}>{getDoctorName(s.doctor_id)}</span>
+                </div>
+                <div className={styles.recentMeta}>
+                  <span className={styles.recentDuration}>{formatDuration(s.duration_seconds)}</span>
+                  <span className={styles.recentDate}>{formatDate(s.created_at)}</span>
+                </div>
+                <span className={`${styles.chip} ${styles[`chip_${s.status}`]}`}>{s.status}</span>
+                <button
+                  className={styles.recentAction}
+                  onClick={() => navigate(`/sessions/${s.id}/review`)}
+                >
+                  <Eye size={13} /> View
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── Breakdown ── */}
       {!statsLoading && stats && totalBreakdown > 0 && (
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Session Breakdown</h2>
-          <div className={styles.breakdownCard}>
-            <BreakdownBar
-              completed={stats.completed_sessions ?? 0}
-              idle={stats.idle_sessions ?? 0}
-              recording={liveCount}
-              total={totalBreakdown}
-            />
-            <div className={styles.breakdownLegend}>
-              <LegendItem dot="completed" label="Completed" value={stats.completed_sessions ?? 0} />
-              {liveCount > 0 && <LegendItem dot="recording" label="Recording" value={liveCount} />}
-              {(stats.idle_sessions ?? 0) > 0 && <LegendItem dot="idle" label="Idle" value={stats.idle_sessions} />}
-              <div className={styles.legendDivider} />
-              <LegendItem label="Avg Duration" value={formatDuration(stats.avg_duration_seconds)} />
-              <LegendItem label="Notes Done" value={stats.finalized_notes ?? 0} />
+          <div className={styles.statsRow}>
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{stats.completed_sessions ?? 0}</span>
+              <span className={styles.statLabel}>completed</span>
+            </div>
+            {liveCount > 0 && <>
+              <span className={styles.statDivider} />
+              <div className={styles.statItem}>
+                <span className={styles.statVal}>{liveCount}</span>
+                <span className={styles.statLabel}>recording</span>
+              </div>
+            </>}
+            <span className={styles.statDivider} />
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{formatDuration(stats.avg_duration_seconds)}</span>
+              <span className={styles.statLabel}>avg duration</span>
+            </div>
+            <span className={styles.statDivider} />
+            <div className={styles.statItem}>
+              <span className={styles.statVal}>{stats.finalized_notes ?? 0}</span>
+              <span className={styles.statLabel}>notes done</span>
             </div>
           </div>
         </section>
@@ -333,12 +459,3 @@ export default function Dashboard() {
   )
 }
 
-function LegendItem({ dot, label, value }) {
-  return (
-    <div className={styles.legendItem}>
-      {dot && <span className={`${styles.legendDot} ${styles[`legendDot_${dot}`]}`} />}
-      <span className={styles.legendLabel}>{label}</span>
-      <span className={styles.legendVal}>{value}</span>
-    </div>
-  )
-}

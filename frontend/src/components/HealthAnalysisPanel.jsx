@@ -68,8 +68,7 @@ export default function HealthAnalysisPanel({ patientId, visitCount, newDocument
     setError(null)
     setTriggered(true)
     try {
-      const url = force ? `${patientId}?force=true` : patientId
-      const result = await patientsApi.analysis(url)
+      const result = await patientsApi.analysis(patientId, force)
       setData(result)
     } catch (err) {
       setError(err.response?.data?.detail || err.message || 'Analysis failed')
@@ -99,7 +98,7 @@ export default function HealthAnalysisPanel({ patientId, visitCount, newDocument
                     marginBottom: 'var(--space-4)' }}>
           AI-powered longitudinal analysis across all {visitCount} finalized visit{visitCount !== 1 ? 's' : ''}.
         </p>
-        <button className="btn btn-primary btn-sm" onClick={() => load()}
+        <button className="btn btn-primary btn-sm" onClick={() => load(true)}
                 style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <Brain size={13} /> Generate Analysis
         </button>

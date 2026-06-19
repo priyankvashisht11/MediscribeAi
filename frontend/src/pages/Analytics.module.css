@@ -1,97 +1,201 @@
-.page { display: flex; flex-direction: column; gap: var(--space-6); }
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-bottom: var(--space-10);
+}
 
 /* ── Header ────────────────────────────────────────────────────────────────── */
-.header { display: flex; flex-direction: column; gap: var(--space-1); }
+.pageHeader { display: flex; align-items: flex-start; justify-content: space-between; }
 
 .title {
   font-size: var(--text-xl);
   font-weight: 700;
   color: var(--color-text);
-  margin: 0;
+  margin: 0 0 2px;
 }
 
-.sub {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  margin: 0;
+.sub { font-size: var(--text-sm); color: var(--color-text-muted); margin: 0; }
+
+/* ── Hero Card ─────────────────────────────────────────────────────────────── */
+.heroCard {
+  background: linear-gradient(135deg, #1a2e5c 0%, #1e3d7a 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  color: #fff;
 }
+
+.heroLeft {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  flex: 1;
+  min-width: 0;
+}
+
+.heroIcon { flex-shrink: 0; opacity: 0.9; margin-top: 3px; }
+
+.heroLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.heroValue {
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1.5px;
+  margin-bottom: 6px;
+}
+
+.heroSub { font-size: var(--text-xs); opacity: 0.75; line-height: 1.5; }
+
+.heroStats {
+  display: flex;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.heroStat {
+  text-align: center;
+  background: rgba(255,255,255,0.15);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  min-width: 72px;
+}
+
+.heroStatVal {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.heroStatLabel { font-size: 11px; opacity: 0.8; white-space: nowrap; }
 
 /* ── KPI Grid ──────────────────────────────────────────────────────────────── */
-.statGrid {
+.kpiGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--space-4);
 }
 
-/* ── Stat Card ─────────────────────────────────────────────────────────────── */
-.statCard {
+.kpiCard {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-5);
+  padding: var(--space-4) var(--space-5);
   display: flex;
+  flex-direction: columns;
   flex-direction: column;
-  gap: var(--space-2);
-  position: relative;
-  overflow: hidden;
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.statCard::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: var(--color-primary);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+.kpiTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
 }
 
-.statCard:hover {
-  box-shadow: 0 6px 24px rgba(0,0,0,0.07);
-  transform: translateY(-2px);
-}
-
-.statValue {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  letter-spacing: -1px;
-}
-
-.statLabel {
-  font-size: var(--text-xs);
+.kpiLabel {
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
-.statSub {
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
+.kpiIcon { color: var(--color-text-muted); opacity: 0.5; }
+
+.kpiValue {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: var(--color-text);
+  letter-spacing: -1px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
-/* ── Chart / Content Card ──────────────────────────────────────────────────── */
+.kpiSub { font-size: var(--text-xs); color: var(--color-text-muted); margin-top: 5px; }
+
+/* ── Card ──────────────────────────────────────────────────────────────────── */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
-  box-shadow: var(--shadow-xs);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .cardTitle {
   font-size: var(--text-base);
   font-weight: 700;
   color: var(--color-text);
-  margin: 0 0 var(--space-5) 0;
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--color-border);
+  margin: 0;
 }
 
-/* ── Loading / Empty ───────────────────────────────────────────────────────── */
+.cardBadge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  background: var(--color-surface-raised, #f3f4f6);
+  padding: 2px 10px;
+  border-radius: 99px;
+}
+
+/* ── Toggle ────────────────────────────────────────────────────────────────── */
+.toggleGroup {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-raised, #f3f4f6);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.toggleBtn {
+  background: none;
+  border: none;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.toggleBtnActive {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ── Two-column layout ─────────────────────────────────────────────────────── */
+.twoCol {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+/* ── Empty / Loading ───────────────────────────────────────────────────────── */
 .loading {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
@@ -99,56 +203,150 @@
   text-align: center;
 }
 
-.emptyState {
-  font-size: var(--text-sm);
-  color: var(--color-text-muted);
-  text-align: center;
+.emptyChart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
   padding: var(--space-8) 0;
-  margin: 0;
-  line-height: 1.6;
+  color: var(--color-text-muted);
+}
+
+.emptyChart p { font-size: var(--text-sm); margin: 0; text-align: center; }
+
+/* ── Documentation Health ──────────────────────────────────────────────────── */
+.docHealth { display: flex; flex-direction: column; gap: var(--space-3); }
+
+.docHealthBar {
+  display: flex;
+  height: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.docHealthLegend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.docHealthItem { display: flex; align-items: center; gap: 6px; }
+
+.docHealthDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.docHealthLabel { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+.docHealthCount { font-size: var(--text-xs); font-weight: 700; color: var(--color-text); }
+
+/* ── Weekday Pattern ───────────────────────────────────────────────────────── */
+.weekdayGrid {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  height: 160px;
+  padding-bottom: var(--space-2);
+}
+
+.weekdayCol {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.weekdayBarWrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  background: var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+  opacity: 0.3;
+  transition: opacity 0.15s;
+}
+
+.weekdayCol:hover .weekdayBarWrap { opacity: 1; }
+
+.weekdayBar {
+  width: 100%;
+  background: var(--color-accent, #2563eb);
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height 0.5s ease;
+}
+
+.weekdayLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.weekdayCount {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── ICD Breakdown ─────────────────────────────────────────────────────────── */
-.icdList { display: flex; flex-direction: column; gap: var(--space-4); }
+.icdList { display: flex; flex-direction: column; gap: var(--space-3); }
 
 .icdRow {
   display: grid;
-  grid-template-columns: 200px 1fr 40px;
+  grid-template-columns: 22px 200px 1fr 36px;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
-.icdMeta { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+.icdRank {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.icdMeta { display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
 
 .icdCode {
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--color-primary);
+  color: var(--color-accent, #2563eb);
   font-family: monospace;
   letter-spacing: 0.04em;
 }
 
 .icdDesc {
-  font-size: var(--text-xs);
-  color: var(--color-text-secondary);
+  font-size: 11px;
+  color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .icdBarWrap {
-  background: var(--color-surface-2);
-  border-radius: var(--radius-full);
-  height: 8px;
+  background: var(--color-border);
+  border-radius: 99px;
+  height: 7px;
   overflow: hidden;
 }
 
 .icdBar {
-  background: linear-gradient(90deg, var(--color-primary), #27a3a8);
-  border-radius: var(--radius-full);
-  height: 8px;
+  background: var(--color-accent, #2563eb);
+  border-radius: 99px;
+  height: 7px;
   min-width: 4px;
   transition: width 0.5s ease;
+  opacity: 0.7;
 }
 
 .icdCount {
@@ -159,8 +357,67 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Doctor Table ──────────────────────────────────────────────────────────── */
+.doctorTable { display: flex; flex-direction: column; }
+
+.doctorTableHead {
+  display: grid;
+  grid-template-columns: 1.5fr 70px 70px 100px 110px 90px;
+  gap: var(--space-4);
+  padding: 0 var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.doctorTableRow {
+  display: grid;
+  grid-template-columns: 1.5fr 70px 70px 100px 110px 90px;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.doctorTableRow:last-child { border-bottom: none; }
+
+.doctorName { font-size: var(--text-sm); font-weight: 600; color: var(--color-text); }
+.doctorSpec { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+.doctorStat {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.doctorStatSub { font-size: var(--text-xs); color: var(--color-text-muted); font-weight: 400; }
+.doctorDate { font-size: var(--text-xs); color: var(--color-text-muted); }
+
 /* ── Responsive ────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) { .statGrid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 600px) {
-  .icdRow { grid-template-columns: 1fr 80px 32px; }
+@media (max-width: 1100px) {
+  .kpiGrid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 860px) {
+  .twoCol { grid-template-columns: 1fr; }
+  .heroCard { flex-direction: column; align-items: flex-start; }
+  .heroStats { flex-direction: row; }
+}
+
+@media (max-width: 640px) {
+  .kpiGrid { grid-template-columns: repeat(2, 1fr); }
+  .heroValue { font-size: 1.8rem; }
+  .icdRow { grid-template-columns: 22px 1fr 36px; }
+  .icdBarWrap { display: none; }
+  .doctorTableHead, .doctorTableRow {
+    grid-template-columns: 1fr 60px 60px 80px;
+  }
+  .doctorTableHead span:nth-child(5),
+  .doctorTableHead span:nth-child(6),
+  .doctorTableRow > *:nth-child(5),
+  .doctorTableRow > *:nth-child(6) { display: none; }
 }

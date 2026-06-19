@@ -55,13 +55,21 @@ SARVAM_URL = (
     "&mode=transcribe"
 )
 
+# Sarvam Saaras v3 — Indian English variant
+SARVAM_EN_URL = (
+    "wss://api.sarvam.ai/speech-to-text/ws"
+    "?language-code=en-IN"
+    "&model=saaras:v3"
+    "&mode=transcribe"
+)
+
 
 @router.websocket("/session/{session_id}")
 async def audio_stream(
     websocket: WebSocket,
     session_id: str,
     token: str | None = Query(default=None),
-    provider: str = Query(default="deepgram"),  # "deepgram" | "sarvam"
+    provider: str = Query(default="deepgram"),  # "deepgram" | "sarvam" | "sarvam_en"
 ):
     # Auth gate: verify token from ?token= query param
     # (browsers cannot send custom headers on WebSocket upgrades)
@@ -293,8 +301,10 @@ async def audio_stream(
             except Exception:
                 pass
 
-    async def sarvam_loop() -> None:
-        """Open Sarvam Saaras v3 streaming connection and bridge PCM audio ↔ transcripts."""
+    async def sarvam_loop(sarvam_url: str = SARVAM_URL) -> None:
+        """Open Sarvam Saaras v3 streaming connection and bridge PCM audio ↔ transcripts.
+        Pass SARVAM_EN_URL for Indian English, SARVAM_URL (default) for Hindi/Hinglish.
+        """
         nonlocal chunk_index
 
         if not settings.sarvam_api_key:
@@ -310,7 +320,7 @@ async def audio_stream(
 
         try:
             async with websockets.connect(
-                SARVAM_URL,
+                sarvam_url,
                 extra_headers=headers,
                 ping_interval=20,
                 ping_timeout=10,
@@ -448,7 +458,12 @@ async def audio_stream(
                 pass
 
     # Route to the selected provider
-    asr_loop = sarvam_loop if provider == "sarvam" else deepgram_loop
+    if provider == "sarvam":
+        async def asr_loop(): return await sarvam_loop(SARVAM_URL)
+    elif provider == "sarvam_en":
+        async def asr_loop(): return await sarvam_loop(SARVAM_EN_URL)
+    else:
+        asr_loop = deepgram_loop
 
     try:
         await asyncio.gather(receive_loop(), asr_loop())

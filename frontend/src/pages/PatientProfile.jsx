@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { patientsApi } from '../services/api'
 import HealthAnalysisPanel from '../components/HealthAnalysisPanel'
 import DocumentsPanel from '../components/DocumentsPanel'
+import { useDoctors } from '../context/DoctorsContext'
 import { Edit2, Save, X, ExternalLink, Plus, Brain, Paperclip, Clock, AlertTriangle, Activity } from 'lucide-react'
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
@@ -32,7 +33,7 @@ function IcdBadge({ code }) {
   )
 }
 
-function VisitCard({ visit, index }) {
+function VisitCard({ visit, index, getDoctorName }) {
   const [expanded, setExpanded] = useState(index === 0)
   const note = visit.note
 
@@ -61,6 +62,11 @@ function VisitCard({ visit, index }) {
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginLeft: 8 }}>
               {formatDate(visit.created_at)}
             </span>
+            {visit.doctor_id && getDoctorName && (
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginLeft: 8 }}>
+                · {getDoctorName(visit.doctor_id)}
+              </span>
+            )}
             {note?.chief_complaint && (
               <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)', marginLeft: 8 }}>
                 · {note.chief_complaint}
@@ -138,6 +144,7 @@ function VisitCard({ visit, index }) {
 export default function PatientProfile() {
   const { patientId } = useParams()
   const navigate = useNavigate()
+  const { getDoctorName } = useDoctors()
   const [patient, setPatient] = useState(null)
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -574,7 +581,7 @@ export default function PatientProfile() {
                   </button>
                 </div>
               ) : (
-                sessions.map((visit, i) => <VisitCard key={visit.id} visit={visit} index={i} />)
+                sessions.map((visit, i) => <VisitCard key={visit.id} visit={visit} index={i} getDoctorName={getDoctorName} />)
               )}
             </div>
           )}

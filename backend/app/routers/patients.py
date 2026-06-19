@@ -191,6 +191,7 @@ async def get_patient_sessions(
 
         items.append({
             "id": str(s.id),
+            "doctor_id": str(s.doctor_id) if s.doctor_id else None,
             "status": s.status,
             "created_at": s.created_at.isoformat() if s.created_at else None,
             "started_at": s.started_at.isoformat() if s.started_at else None,
@@ -533,7 +534,7 @@ Respond ONLY with valid JSON. No explanation, no markdown fences."""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "r1-1776",
+                    "model": settings.perplexity_model,
                     "messages": [
                         {"role": "system", "content": "You are a clinical AI assistant. Always respond with valid JSON only."},
                         {"role": "user", "content": prompt},

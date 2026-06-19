@@ -9,16 +9,98 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from app.config import settings
 from app.database import AsyncSessionLocal, get_db, init_db
-from app.routers import analytics, auth, clinics, doctors, notes, patients, sessions, ws
+from app.routers import analytics, auth, billing, clinics, demo, doctors, notes, patients, sessions, webhooks, ws
 from app.routers.auth import decode_token
 from app.services import redis_client as redis_module
 
 _bearer = HTTPBearer(auto_error=False)
 
 logger = logging.getLogger(__name__)
+
+
+# ── Security headers ───────────────────────────────────────────────────────────
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Inject hardening headers on every API response."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "camera=(), microphone=(), geolocation=(), payment=(self)",
+        )
+        # Prevent API responses from being cached by CDN / browser
+        if request.url.path.startswith("/api/"):
+            response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+
+# ── Rate limiter ───────────────────────────────────────────────────────────────
+
+# (path, max_requests, window_seconds)
+_RATE_RULES: list[tuple[str, int, int]] = [
+    ("/api/auth/login",          10,  900),   # 10 req / 15 min per IP
+    ("/api/auth/register",        5, 3600),   # 5 req / hr per IP
+    ("/api/auth/refresh",        30,  900),   # 30 req / 15 min per IP
+    ("/api/auth/setup-password",  5, 3600),   # 5 req / hr per IP
+    ("/api/auth/reset-password",  5, 3600),   # 5 req / hr per IP
+]
+_GLOBAL_LIMIT = (300, 60)  # 300 req/min per IP — basic DDoS guard
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Redis-backed per-IP rate limiter. Fails open when Redis is unavailable."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for health checks and webhooks (Razorpay needs no IP limit)
+        path = request.url.path
+        if path in ("/health", "/api/webhooks/razorpay"):
+            return await call_next(request)
+
+        ip = request.headers.get("fly-client-ip") or request.headers.get("x-forwarded-for", "").split(",")[0].strip() or (request.client.host if request.client else "unknown")
+
+        try:
+            redis = redis_module.get_client()
+
+            # Endpoint-specific limits
+            for rule_path, max_req, window in _RATE_RULES:
+                if path == rule_path:
+                    key = f"rl:{rule_path}:{ip}"
+                    count = await redis.incr(key)
+                    if count == 1:
+                        await redis.expire(key, window)
+                    if count > max_req:
+                        retry_after = await redis.ttl(key)
+                        return JSONResponse(
+                            status_code=429,
+                            content={"detail": "Too many requests. Please slow down."},
+                            headers={"Retry-After": str(max(retry_after, 1))},
+                        )
+                    break
+
+            # Global per-IP limit (all paths)
+            g_max, g_window = _GLOBAL_LIMIT
+            gkey = f"rl:global:{ip}"
+            gcount = await redis.incr(gkey)
+            if gcount == 1:
+                await redis.expire(gkey, g_window)
+            if gcount > g_max:
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Too many requests. Please slow down."},
+                    headers={"Retry-After": "60"},
+                )
+        except Exception:
+            pass  # Redis unavailable — fail open, never block legitimate traffic
+
+        return await call_next(request)
 
 
 async def require_auth(
@@ -179,6 +261,20 @@ async def _seed_demo_clinic() -> None:
                     email=d["email"], clinic_id=DEMO_CLINIC_ID,
                     hashed_password=hashed, role=d["role"], is_active=True,
                 ))
+        # Always reset demo clinic subscription to free — prevents test runs from leaving it in trialing/active
+        from app.models.billing import Subscription
+        demo_sub = (await db.execute(
+            select(Subscription).where(Subscription.clinic_id == DEMO_CLINIC_ID)
+        )).scalar_one_or_none()
+        if demo_sub:
+            demo_sub.plan = "free"
+            demo_sub.status = "free"
+            demo_sub.razorpay_subscription_id = None
+            demo_sub.trial_ends_at = None
+            demo_sub.current_period_end = None
+        else:
+            db.add(Subscription(clinic_id=DEMO_CLINIC_ID, plan="free", status="free"))
+
         await db.commit()
     print("[Startup] Demo clinic and doctors seeded.", flush=True)
 
@@ -269,20 +365,27 @@ _origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    # No wildcard Vercel regex — only explicitly allowed origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
+    expose_headers=["X-Request-ID"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
-app.include_router(auth.router,      prefix="/api/auth",      tags=["Auth"])
-app.include_router(clinics.router,   prefix="/api/clinics",   tags=["Clinics"],   dependencies=[Depends(require_auth)])
+app.include_router(auth.router,              prefix="/api/auth",    tags=["Auth"])
+app.include_router(clinics.public_router,    prefix="/api/clinics", tags=["Clinics"])
+app.include_router(clinics.router,           prefix="/api/clinics", tags=["Clinics"],   dependencies=[Depends(require_auth)])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"], dependencies=[Depends(require_auth)])
 app.include_router(sessions.router,  prefix="/api/sessions",  tags=["Sessions"],  dependencies=[Depends(require_auth)])
 app.include_router(notes.router,     prefix="/api/notes",     tags=["Notes"],     dependencies=[Depends(require_auth)])
 app.include_router(doctors.router,   prefix="/api/doctors",   tags=["Doctors"],   dependencies=[Depends(require_auth)])
 app.include_router(patients.router,  prefix="/api/patients",  tags=["Patients"],  dependencies=[Depends(require_auth)])
 app.include_router(ws.router,        prefix="/ws",            tags=["WebSocket"])
+app.include_router(demo.router,      prefix="/api/demo",      tags=["Demo"],      dependencies=[Depends(require_auth)])
+app.include_router(billing.router,   prefix="/api/billing",   tags=["Billing"],   dependencies=[Depends(require_auth)])
+app.include_router(webhooks.router,  prefix="/api/webhooks",  tags=["Webhooks"])
 
 
 @app.exception_handler(Exception)

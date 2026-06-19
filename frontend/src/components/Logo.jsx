@@ -1,4 +1,7 @@
-export default function Logo({ size = 32 }) {
+// Option 2 — C Pulse: bold C arc with ECG heartbeat line in the gap
+// light=false (default): white C for dark sidebar
+// light=true: dark C for light backgrounds (landing page)
+export default function Logo({ size = 32, light = false }) {
   return (
     <svg
       width={size}
@@ -6,42 +9,22 @@ export default function Logo({ size = 32 }) {
       viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="Chartr"
+      aria-hidden="true"
     >
-      {/* Stethoscope circle head */}
-      <circle cx="22" cy="22" r="5" stroke="var(--color-primary)" strokeWidth="2" fill="none" />
-      {/* Stethoscope tube */}
+      {/* Bold C arc — center (16,16), radius 11, gap on right ~80° */}
       <path
-        d="M17 22 C17 16 13 14 13 9"
-        stroke="var(--color-primary)"
-        strokeWidth="2"
+        d="M 24 9 A 11 11 0 1 0 24 23"
+        stroke={light ? '#0a0a0a' : 'white'}
+        strokeWidth="3.5"
         strokeLinecap="round"
-        fill="none"
       />
-      {/* Earpiece left */}
-      <path
-        d="M10 9 C10 6 8 5 7 6"
-        stroke="var(--color-primary)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Earpiece right */}
-      <path
-        d="M16 9 C16 6 18 5 19 6"
-        stroke="var(--color-primary)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* Pulse / waveform line */}
+      {/* ECG heartbeat line floating in the C gap */}
       <polyline
-        points="2,16 5,16 7,10 9,22 11,16 14,16"
-        stroke="var(--color-primary)"
-        strokeWidth="1.8"
+        points="24,16 26,16 27,13.5 28.5,19 30,10 31,16"
+        stroke="#3b82f6"
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        fill="none"
       />
     </svg>
   )

@@ -229,6 +229,50 @@ async def get_session(session_id: UUID, request: Request, db: AsyncSession = Dep
     return _build_response(session, patient)
 
 
+async def _check_session_gate(clinic_id, db: AsyncSession) -> None:
+    """Block session creation if the clinic is on the free tier and over the monthly limit."""
+    from app.models.billing import Subscription
+    from sqlalchemy import extract
+
+    result = await db.execute(
+        select(Subscription).where(Subscription.clinic_id == clinic_id)
+    )
+    sub = result.scalar_one_or_none()
+
+    # No subscription row → treat as free
+    status = sub.status if sub else "free"
+
+    # Auto-expire trial if trial_ends_at has passed
+    if status == "trialing" and sub and sub.trial_ends_at:
+        if sub.trial_ends_at < datetime.now(timezone.utc):
+            status = "free"  # treat as free for gating purposes
+
+    if status not in ("free",):
+        return  # active paid plan or within valid trial — no session cap
+
+    # Free tier: 10 sessions/month
+    FREE_LIMIT = 10
+    now = datetime.now(timezone.utc)
+    used = (await db.execute(
+        select(func.count()).select_from(Session).where(
+            Session.clinic_id == clinic_id,
+            extract("year",  Session.created_at) == now.year,
+            extract("month", Session.created_at) == now.month,
+        )
+    )).scalar_one()
+
+    if used >= FREE_LIMIT:
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "session_limit_reached",
+                "message": f"You've used all {FREE_LIMIT} free sessions this month. Upgrade to record more.",
+                "sessions_used": used,
+                "session_limit": FREE_LIMIT,
+            },
+        )
+
+
 @router.post("/", response_model=SessionResponse)
 async def create_session(
     body: CreateSessionRequest,
@@ -236,6 +280,10 @@ async def create_session(
     db: AsyncSession = Depends(get_db),
 ):
     clinic_id = _get_clinic_id(request)
+
+    if clinic_id:
+        await _check_session_gate(clinic_id, db)
+
     name = body.patient_name or "Anonymous Patient"
     age = body.patient_age
 

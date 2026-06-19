@@ -14,17 +14,16 @@
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface);
-  background-image: linear-gradient(to bottom, var(--color-surface) 60%, var(--color-primary-light) 100%);
+  border-right: 1px solid #1a1a1a;
+  background: #0c0c0c;
   transition: transform var(--transition-slow);
   z-index: 20;
 }
 
 .sidebarHeader {
   padding: var(--space-4) var(--space-4) var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 100%);
+  border-bottom: 1px solid #1a1a1a;
+  background: #0c0c0c;
 }
 
 .logoBtn {
@@ -41,13 +40,13 @@
 }
 
 .logoBtn:hover {
-  background: var(--color-surface-2);
+  background: rgba(255,255,255,0.06);
 }
 
 .logoText {
   font-size: 1.45rem;
   font-weight: 800;
-  color: var(--color-primary);
+  color: #ffffff;
   letter-spacing: -0.03em;
 }
 
@@ -63,12 +62,12 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
 }
 
 .navDivider {
   height: 1px;
-  background: var(--color-border);
+  background: #1f1f1f;
   margin: var(--space-3) var(--space-2);
 }
 
@@ -80,30 +79,30 @@
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: 500;
-  color: var(--color-text-secondary);
+  color: #6b7280;
   text-decoration: none;
-  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+  transition: background var(--transition), color var(--transition);
   white-space: nowrap;
   border-left: 3px solid transparent;
   margin-left: -3px;
 }
 
 .navItem:hover {
-  background: var(--color-surface-2);
-  color: var(--color-text);
+  background: rgba(255,255,255,0.06);
+  color: #e5e5e5;
   text-decoration: none;
 }
 
 .navItemActive {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
   font-weight: 600;
-  border-left-color: var(--color-primary);
+  border-left-color: #ffffff;
 }
 
 .navItemActive:hover {
-  background: var(--color-primary-light);
-  color: var(--color-primary);
+  background: rgba(255,255,255,0.08);
+  color: #ffffff;
 }
 
 /* ── Topbar ──────────────────────────────────────────────────────────────── */
@@ -136,6 +135,7 @@
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
   transition: background var(--transition);
+  cursor: pointer;
 }
 
 .hamburger:hover {
@@ -159,13 +159,27 @@
   color: var(--color-text);
 }
 
+/* ── Nav group label ─────────────────────────────────────────────────────── */
+.navGroupLabel {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5a6273;
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  margin-top: var(--space-1);
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ── Main ────────────────────────────────────────────────────────────────── */
 .main {
   grid-column: 2;
   grid-row: 2;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: var(--color-bg);
+  background: #F7F8FA;
   padding: var(--space-6);
 }
 

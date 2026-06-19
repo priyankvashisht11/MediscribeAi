@@ -1,3 +1,4 @@
+import '@fontsource-variable/geist'
 import './styles/tokens.css'
 import './styles/base.css'
 import React from 'react'

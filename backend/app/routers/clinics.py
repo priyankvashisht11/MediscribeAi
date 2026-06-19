@@ -14,9 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import Doctor
+from app.models.billing import Subscription
 from app.models.clinic import Clinic, ClinicInvite
 
-router = APIRouter()
+router = APIRouter()        # protected routes — require_auth applied at include_router
+public_router = APIRouter()  # unauthenticated routes (signup)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -81,7 +83,7 @@ def _validate_password(password: str) -> None:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.post("/")
+@public_router.post("/")
 async def create_clinic(
     body: CreateClinicRequest,
     request: Request,
@@ -118,6 +120,16 @@ async def create_clinic(
         is_active=True,
     )
     db.add(doctor)
+
+    # Auto-start 30-day Solo trial for every new clinic
+    trial_end = datetime.now(timezone.utc) + timedelta(days=30)
+    db.add(Subscription(
+        clinic_id=clinic.id,
+        plan="solo",
+        status="trialing",
+        trial_ends_at=trial_end,
+    ))
+
     await db.commit()
     await db.refresh(doctor)
     await db.refresh(clinic)
