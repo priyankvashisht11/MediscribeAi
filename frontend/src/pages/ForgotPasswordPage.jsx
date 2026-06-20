@@ -24,83 +24,128 @@ export default function ForgotPasswordPage() {
     }
   }
 
-  if (sent) {
-    return (
-      <div className={styles.overlay}>
-        <div className={styles.card}>
-          <div className={styles.logo}>Chartr</div>
-          <div style={{ textAlign: 'center', padding: 'var(--space-4) 0' }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: 'var(--space-3)' }}>📬</div>
-            <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
-              Check your email
-            </h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', lineHeight: 1.6 }}>
-              If <strong>{email}</strong> is registered, we've sent a password reset link.
-              It expires in 1 hour.
-            </p>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-xs)', marginTop: 'var(--space-3)' }}>
-              Didn't get it? Check your spam folder or contact your clinic admin.
-            </p>
-          </div>
-          <button
-            className={styles.btn}
-            style={{ marginTop: 'var(--space-4)' }}
-            onClick={() => navigate('/login')}
-            type="button"
-          >
-            Back to sign in
-          </button>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className={styles.overlay}>
-      <div className={styles.card}>
-        <div>
-          <div className={styles.logo}>Chartr</div>
-          <p className={styles.sub}>Reset your password</p>
-        </div>
+    <div className={styles.page}>
 
-        <form onSubmit={submit} className={styles.form}>
-          <div className={styles.fieldGroup}>
-            <label className={styles.label}>Email address</label>
-            <input
-              className={styles.input}
-              type="email"
-              placeholder="doctor@clinic.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              autoFocus
-              required
-              disabled={loading}
+      {/* ── Left: brand panel ── */}
+      <div className={styles.left}>
+        <div className={styles.leftBrand} onClick={() => navigate('/')}>Chartr</div>
+
+        <div className={styles.leftBody}>
+          <h2 className={styles.leftTagline}>
+            Every consultation,<br />perfectly documented.
+          </h2>
+
+          <div className={styles.leftImgWrap}>
+            <img
+              src="https://images.pexels.com/photos/12599544/pexels-photo-12599544.jpeg?auto=compress&cs=tinysrgb&w=800"
+              alt="Doctor in hospital"
+              className={styles.leftImg}
             />
-            <p className={styles.hint}>
-              We'll send a reset link to this address if it's registered.
-            </p>
+            <div className={styles.leftSOAPCard}>
+              <span className={styles.leftSOAPTag}>SOAP · Generated in 24s</span>
+              <p className={styles.leftSOAPText}>S: Fever 101.2°F × 3 days, body ache, mild cough</p>
+              <p className={styles.leftSOAPText} style={{ opacity: 0.45 }}>A: Viral URTI (J06.9) — symptomatic management...</p>
+            </div>
           </div>
 
-          {error && <p className={styles.error}>{error}</p>}
+          <div className={styles.leftStats}>
+            <div className={styles.leftStat}>
+              <span>&lt; 30s</span><span>avg. note</span>
+            </div>
+            <div className={styles.leftStat}>
+              <span>3</span><span>documents</span>
+            </div>
+            <div className={styles.leftStat}>
+              <span>Free</span><span>to start</span>
+            </div>
+          </div>
+        </div>
 
-          <button
-            className={styles.btn}
-            type="submit"
-            disabled={loading || !email}
-          >
-            {loading ? 'Sending…' : 'Send reset link'}
-          </button>
-        </form>
-
-        <div className={styles.links}>
-          <p className={styles.linkText}>
-            Remember your password?{' '}
-            <button className={styles.link} onClick={() => navigate('/login')} type="button">
-              Sign in
-            </button>
+        <div className={styles.leftFooter}>
+          <p className={styles.leftQuote}>
+            "Chartr saves me 45 minutes every OPD day. The Hindi recognition is surprisingly accurate."
           </p>
+          <p className={styles.leftQuoteAuthor}>— Dr. Rajesh Sharma, General Physician · New Delhi</p>
         </div>
       </div>
+
+      {/* ── Right: form panel ── */}
+      <div className={styles.right}>
+        <div className={styles.formBox}>
+
+          {sent ? (
+            <>
+              <div className={styles.formHeader}>
+                <div style={{ fontSize: '32px', marginBottom: '4px' }}>📬</div>
+                <h1 className={styles.formTitle}>Check your email</h1>
+                <p className={styles.formSub}>
+                  We sent a reset link to <strong style={{ color: '#0a0a0a' }}>{email}</strong>.
+                  It expires in 1 hour.
+                </p>
+              </div>
+
+              <p className={styles.hint} style={{ textAlign: 'center' }}>
+                Didn't get it? Check your spam folder, or contact your clinic admin.
+              </p>
+
+              <button className={styles.btn} onClick={() => navigate('/login')} type="button">
+                Back to sign in
+              </button>
+
+              <div className={styles.links}>
+                <p className={styles.linkText}>
+                  Wrong email?{' '}
+                  <button className={styles.link} onClick={() => { setSent(false); setEmail('') }} type="button">
+                    Try again
+                  </button>
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={styles.formHeader}>
+                <h1 className={styles.formTitle}>Forgot password?</h1>
+                <p className={styles.formSub}>Enter your email and we'll send a reset link.</p>
+              </div>
+
+              <form onSubmit={submit} className={styles.form}>
+                <div className={styles.fieldGroup}>
+                  <label className={styles.label}>Email address</label>
+                  <input
+                    className={styles.input}
+                    type="email"
+                    placeholder="doctor@clinic.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    autoFocus
+                    required
+                    disabled={loading}
+                  />
+                  <p className={styles.hint}>We'll only send a link if this email is registered.</p>
+                </div>
+
+                {error && <p className={styles.error}>{error}</p>}
+
+                <button className={styles.btn} type="submit" disabled={loading || !email}>
+                  {loading ? 'Sending…' : 'Send reset link →'}
+                </button>
+              </form>
+
+              <div className={styles.links}>
+                <p className={styles.linkText}>
+                  Remember your password?{' '}
+                  <button className={styles.link} onClick={() => navigate('/login')} type="button">
+                    Sign in
+                  </button>
+                </p>
+              </div>
+            </>
+          )}
+
+        </div>
+      </div>
+
     </div>
   )
 }

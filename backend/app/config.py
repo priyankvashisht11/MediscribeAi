@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     # Get from: https://resend.com → API Keys
     # Set via: flyctl secrets set RESEND_API_KEY=re_... --app chartr-api
 
-    from_email: str = "noreply@chartr.in"
+    from_email: str = "noreply@getchartr.in"
     # Must be a verified sender domain in Resend
 
     # ── Razorpay Billing ───────────────────────────────────────────────────────
