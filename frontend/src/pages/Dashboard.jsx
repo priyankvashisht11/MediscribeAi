@@ -217,6 +217,7 @@ export default function Dashboard() {
           </p>
           <div className="first-run-actions">
             <button
+              data-tour="new-session"
               className="btn btn-primary btn-lg"
               onClick={() => navigate(sessionGated ? '/pricing' : '/sessions/new')}
             >
@@ -322,6 +323,7 @@ export default function Dashboard() {
             </>
           )}
           <button
+            data-tour="new-session"
             className={styles.newSessionBtn}
             onClick={() => navigate(sessionGated ? '/pricing' : '/sessions/new')}
             title={sessionGated ? 'Monthly session limit reached — upgrade to continue' : undefined}

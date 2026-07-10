@@ -8,7 +8,7 @@ export default function SignupPage({ onSuccess }) {
   const navigate = useNavigate()
   const [plan, setPlan] = useState('solo')
   const [form, setForm] = useState({
-    clinic_name: '', admin_name: '', admin_specialty: '', admin_email: '', admin_password: '',
+    clinic_name: '', admin_name: '', admin_specialty: '', admin_email: '', admin_password: '', admin_medical_reg_no: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -165,6 +165,20 @@ export default function SignupPage({ onSuccess }) {
             </div>
 
             <div className={styles.fieldGroup}>
+              <label className={styles.label}>Medical Registration Number (MCI/NMC)</label>
+              <input
+                className={styles.input}
+                type="text"
+                placeholder="e.g. DL-12345 or MH-67890"
+                value={form.admin_medical_reg_no}
+                onChange={set('admin_medical_reg_no')}
+                required
+                disabled={loading}
+              />
+              <p className={styles.hint}>Your state medical council registration number. Required to verify you are a licensed doctor.</p>
+            </div>
+
+            <div className={styles.fieldGroup}>
               <label className={styles.label}>Password</label>
               <input
                 className={styles.input}
@@ -183,7 +197,7 @@ export default function SignupPage({ onSuccess }) {
             <button
               className={styles.btn}
               type="submit"
-              disabled={loading || !form.clinic_name || !form.admin_name || !form.admin_email || !form.admin_password}
+              disabled={loading || !form.clinic_name || !form.admin_name || !form.admin_email || !form.admin_password || !form.admin_medical_reg_no}
             >
               {loading ? 'Creating account…' : 'Create clinic →'}
             </button>

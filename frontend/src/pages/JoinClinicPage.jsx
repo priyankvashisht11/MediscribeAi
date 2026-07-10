@@ -14,6 +14,7 @@ export default function JoinClinicPage({ onSuccess }) {
     email: '',
     password: '',
     confirm_password: '',
+    medical_registration_number: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -106,6 +107,20 @@ export default function JoinClinicPage({ onSuccess }) {
           </div>
 
           <div className={styles.fieldGroup}>
+            <label className={styles.label}>Medical Registration Number (MCI/NMC)</label>
+            <input
+              className={styles.input}
+              type="text"
+              placeholder="e.g. DL-12345 or MH-67890"
+              value={form.medical_registration_number}
+              onChange={set('medical_registration_number')}
+              required
+              disabled={loading}
+            />
+            <p className={styles.hint}>Your state medical council registration number.</p>
+          </div>
+
+          <div className={styles.fieldGroup}>
             <label className={styles.label}>Password</label>
             <input
               className={styles.input}
@@ -136,7 +151,7 @@ export default function JoinClinicPage({ onSuccess }) {
           <button
             className={styles.btn}
             type="submit"
-            disabled={loading || !form.invite_code || !form.name || !form.email || !form.password}
+            disabled={loading || !form.invite_code || !form.name || !form.email || !form.password || !form.medical_registration_number}
           >
             {loading ? 'Joining…' : 'Join clinic'}
           </button>

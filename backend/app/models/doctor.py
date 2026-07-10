@@ -14,6 +14,7 @@ class Doctor(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     specialty: Mapped[str] = mapped_column(String(100), nullable=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=True)
+    medical_registration_number: Mapped[str] = mapped_column(String(100), nullable=True)
     language_preference: Mapped[str] = mapped_column(String(20), default="hinglish")
     # Sprint 10 auth fields
     clinic_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clinics.id"), nullable=True)

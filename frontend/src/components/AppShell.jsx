@@ -13,6 +13,7 @@ import Logo from './Logo'
 import ChartrWordmark from './ChartrWordmark'
 import ToastContainer from './Toast'
 import TrialBanner from './TrialBanner'
+import OnboardingTour from './OnboardingTour'
 import styles from './AppShell.module.css'
 
 const NAV_ITEMS = [
@@ -125,6 +126,7 @@ export default function AppShell() {
             <li>
               <NavLink
                 to="/patients"
+                data-tour="patients-nav"
                 className={({ isActive }) =>
                   `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
                 }
@@ -149,6 +151,7 @@ export default function AppShell() {
             <li>
               <NavLink
                 to="/analytics"
+                data-tour="analytics-nav"
                 className={({ isActive }) =>
                   `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
                 }
@@ -261,6 +264,7 @@ export default function AppShell() {
       </nav>
 
       <ToastContainer />
+      <OnboardingTour />
 
       {showShortcuts && (
         <div className="modal-overlay" onClick={() => setShowShortcuts(false)}>

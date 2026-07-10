@@ -60,6 +60,7 @@ class CreateClinicRequest(BaseModel):
     admin_specialty: str
     admin_email: str
     admin_password: str
+    admin_medical_reg_no: str
 
 
 class UpdateClinicRequest(BaseModel):
@@ -110,6 +111,10 @@ async def create_clinic(
     db.add(clinic)
     await db.flush()
 
+    reg_no = body.admin_medical_reg_no.strip()
+    if not reg_no:
+        raise HTTPException(status_code=422, detail="Medical registration number is required.")
+
     doctor = Doctor(
         name=body.admin_name,
         specialty=body.admin_specialty,
@@ -118,6 +123,7 @@ async def create_clinic(
         clinic_id=clinic.id,
         role="admin",
         is_active=True,
+        medical_registration_number=reg_no,
     )
     db.add(doctor)
 

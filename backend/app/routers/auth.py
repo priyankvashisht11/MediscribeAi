@@ -148,6 +148,7 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     confirm_password: str
+    medical_registration_number: str
 
 
 class SetupPasswordRequest(BaseModel):
@@ -267,6 +268,10 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
 
+    reg_no = body.medical_registration_number.strip()
+    if not reg_no:
+        raise HTTPException(status_code=422, detail="Medical registration number is required.")
+
     doctor = Doctor(
         name=body.name,
         specialty=body.specialty,
@@ -275,6 +280,7 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         clinic_id=invite.clinic_id,
         role="doctor",
         is_active=True,
+        medical_registration_number=reg_no,
     )
     db.add(doctor)
     await db.flush()

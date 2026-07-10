@@ -1,4 +1,5 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -15,6 +16,14 @@ config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Override sqlalchemy.url with DATABASE_URL env var (used in production on Fly.io)
+_db_url = os.environ.get("DATABASE_URL")
+if _db_url:
+    _db_url = _db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+    if not _db_url.startswith("postgresql+asyncpg://"):
+        _db_url = _db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 
